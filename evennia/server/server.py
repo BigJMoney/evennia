@@ -204,6 +204,9 @@ class Evennia:
         application - an instantiated Twisted application
 
         """
+        #import time     # BigJ changes, remove
+        #time.sleep(5)   # BigJ changes, remove
+
         sys.path.insert(1, ".")
 
         # create a store of services
