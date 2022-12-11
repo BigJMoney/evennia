@@ -335,7 +335,7 @@ class EvenniaCommandTestMixin:
         obj=None,
         inputs=None,
         raw_string=None,
-        noevtable=True,
+        evtable=False,
     ):
         """
         Test a command by assigning all the needed properties to a cmdobj and
@@ -430,7 +430,7 @@ class EvenniaCommandTestMixin:
         inputs = inputs or []
 
         def parse_ansi(mess):
-            if noevtable:
+            if not evtable:
                 # version with evtable-style decoration characters removed
                 return _RE_STRIP_EVMENU.sub("", ansi.parse_ansi(mess, strip_ansi=noansi))
             else:
