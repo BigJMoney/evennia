@@ -138,9 +138,8 @@ Optional:
         object dbrefs). For boolean fields, return '0' or '1' to set
         the field to False or True.
 """
-
+import evennia
 from evennia import Command
-from evennia.server.sessionhandler import SESSIONS
 from evennia.utils import delay, evmenu, evtable, list_to_string, logger
 
 
@@ -234,7 +233,7 @@ def init_fill_field(
     # Initialize menu of selections
     FieldEvMenu(
         caller,
-        "evennia.contrib.utils.fieldfill",
+        "evennia.contrib.utils.fieldfill.fieldfill",
         startnode="menunode_fieldfill",
         auto_look=False,
         persistent=persistent,
@@ -573,7 +572,7 @@ def verify_online_player(caller, value):
             made.
     """
     # Get a list of sessions
-    session_list = SESSIONS.get_sessions()
+    session_list = evennia.SESSION_HANDLER.get_sessions()
     char_list = []
     matched_character = None
 

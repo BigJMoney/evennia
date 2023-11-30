@@ -155,20 +155,20 @@ class ServerSession(_BASE_SESSION_CLASS):
         Get the account associated with this session
 
         Returns:
-            account (Account): The associated Account.
+            account (Account or None): The associated Account.
 
         """
-        return self.logged_in and self.account
+        return self.account if self.logged_in else None
 
     def get_puppet(self):
         """
         Get the in-game character associated with this session.
 
         Returns:
-            puppet (Object): The puppeted object, if any.
+            puppet (Object or None): The puppeted object, if any.
 
         """
-        return self.logged_in and self.puppet
+        return self.puppet if self.logged_in else None
 
     get_character = get_puppet
 
@@ -212,7 +212,7 @@ class ServerSession(_BASE_SESSION_CLASS):
 
         """
         flags = self.protocol_flags
-        print("session flags:", flags)
+        # print("session flags:", flags)
         width = flags.get("SCREENWIDTH", {}).get(0, settings.CLIENT_DEFAULT_WIDTH)
         height = flags.get("SCREENHEIGHT", {}).get(0, settings.CLIENT_DEFAULT_HEIGHT)
         return width, height

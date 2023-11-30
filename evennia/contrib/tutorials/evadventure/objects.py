@@ -18,12 +18,15 @@ rune sword (weapon+quest).
 
 """
 
-from evennia import AttributeProperty
+from evennia import AttributeProperty, create_object, search_object
 from evennia.objects.objects import DefaultObject
 from evennia.utils.utils import make_iter
 
+from . import rules
 from .enums import Ability, ObjType, WieldLocation
 from .utils import get_obj_stats
+
+_BARE_HANDS = None
 
 
 class EvAdventureObject(DefaultObject):
@@ -70,6 +73,25 @@ class EvAdventureObject(DefaultObject):
         """
         return "No help for this item."
 
+    def at_pre_use(self, *args, **kwargs):
+        """
+        Called before use. If returning False, usage should be aborted.
+        """
+        return True
+
+    def use(self, *args, **kwargs):
+        """
+        Use this object, whatever that may mean.
+
+        """
+        raise NotImplementedError
+
+    def at_post_use(self, *args, **kwargs):
+        """
+        Called after use happened.
+        """
+        pass
+
 
 class EvAdventureObjectFiller(EvAdventureObject):
     """
@@ -105,7 +127,7 @@ class EvAdventureTreasure(EvAdventureObject):
     """
 
     obj_type = ObjType.TREASURE
-    value = AttributeProperty(100)
+    value = AttributeProperty(100, autocreate=False)
 
 
 class EvAdventureConsumable(EvAdventureObject):
@@ -116,20 +138,30 @@ class EvAdventureConsumable(EvAdventureObject):
     """
 
     obj_type = ObjType.CONSUMABLE
-    size = AttributeProperty(0.25)
-    uses = AttributeProperty(1)
+    size = AttributeProperty(0.25, autocreate=False)
+    uses = AttributeProperty(1, autocreate=False)
 
-    def at_use(self, user, *args, **kwargs):
+    def at_pre_use(self, user, target=None, *args, **kwargs):
+        if target and user.location != target.location:
+            user.msg("You are not close enough to the target!")
+            return False
+
+        if self.uses <= 0:
+            user.msg(f"|w{self.key} is used up.|n")
+            return False
+
+        return super().at_pre_use(user, target=target, *args, **kwargs)
+
+    def use(self, user, target=None, *args, **kwargs):
         """
-        Consume a 'use' of this item. Once it reaches 0 uses, it should normally
-        not be usable anymore and probably be deleted.
-
-        Args:
-            user (Object): The one using the item.
-            *args, **kwargs: Extra arguments depending on the usage and item.
+        Use the consumable.
 
         """
-        pass
+
+        if user.location:
+            user.location.msg_contents(
+                f"$You() $conj(use) {self.get_display_name(user)}.", from_obj=user
+            )
 
     def at_post_use(self, user, *args, **kwargs):
         """
@@ -142,26 +174,8 @@ class EvAdventureConsumable(EvAdventureObject):
         """
         self.uses -= 1
         if self.uses <= 0:
-            user.msg(f"{self.key} was used up.")
+            user.msg(f"|w{self.key} was used up.|n")
             self.delete()
-
-
-class WeaponEmptyHand:
-    """
-    This is a dummy-class loaded when you wield no weapons. We won't create any db-object for it.
-
-    """
-
-    obj_type = ObjType.WEAPON
-    key = "Empty Fists"
-    inventory_use_slot = WieldLocation.WEAPON_HAND
-    attack_type = Ability.STR
-    defense_type = Ability.ARMOR
-    damage_roll = "1d4"
-    quality = 100000  # let's assume fists are always available ...
-
-    def __repr__(self):
-        return "<WeaponEmptyHand>"
 
 
 class EvAdventureWeapon(EvAdventureObject):
@@ -178,6 +192,93 @@ class EvAdventureWeapon(EvAdventureObject):
     attack_type = AttributeProperty(Ability.STR)
     # what defense stat of the enemy it must defeat
     defense_type = AttributeProperty(Ability.ARMOR)
+    damage_roll = AttributeProperty("1d6")
+
+    def get_display_name(self, looker=None, **kwargs):
+        quality = self.quality
+
+        quality_txt = ""
+        if quality <= 0:
+            quality_txt = "|r(broken!)|n"
+        elif quality < 2:
+            quality_txt = "|y(damaged)|n"
+        elif quality < 3:
+            quality_txt = "|Y(chipped)|n"
+
+        return super().get_display_name(looker=looker, **kwargs) + quality_txt
+
+    def at_pre_use(self, user, target=None, *args, **kwargs):
+        if target and user.location != target.location:
+            # we assume weapons can only be used in the same location
+            user.msg("You are not close enough to the target!")
+            return False
+
+        if self.quality is not None and self.quality <= 0:
+            user.msg(f"{self.get_display_name(user)} is broken and can't be used!")
+            return False
+        return super().at_pre_use(user, target=target, *args, **kwargs)
+
+    def use(self, attacker, target, *args, advantage=False, disadvantage=False, **kwargs):
+        """When a weapon is used, it attacks an opponent"""
+
+        location = attacker.location
+
+        is_hit, quality, txt = rules.dice.opposed_saving_throw(
+            attacker,
+            target,
+            attack_type=self.attack_type,
+            defense_type=self.defense_type,
+            advantage=advantage,
+            disadvantage=disadvantage,
+        )
+        location.msg_contents(
+            f"$You() $conj(attack) $You({target.key}) with {self.key}: {txt}",
+            from_obj=attacker,
+            mapping={target.key: target},
+        )
+        if is_hit:
+            # enemy hit, calculate damage
+            dmg = rules.dice.roll(self.damage_roll)
+
+            if quality is Ability.CRITICAL_SUCCESS:
+                # doble damage roll for critical success
+                dmg += rules.dice.roll(self.damage_roll)
+                message = (
+                    f" $You() |ycritically|n $conj(hit) $You({target.key}) for |r{dmg}|n damage!"
+                )
+            else:
+                message = f" $You() $conj(hit) $You({target.key}) for |r{dmg}|n damage!"
+
+            location.msg_contents(message, from_obj=attacker, mapping={target.key: target})
+            # call hook
+            target.at_damage(dmg, attacker=attacker)
+
+        else:
+            # a miss
+            message = f" $You() $conj(miss) $You({target.key})."
+            if quality is Ability.CRITICAL_FAILURE:
+                message += ".. it's a |rcritical miss!|n, damaging the weapon."
+                if self.quality is not None:
+                    self.quality -= 1
+                location.msg_contents(message, from_obj=attacker, mapping={target.key: target})
+
+    def at_post_use(self, user, *args, **kwargs):
+        if self.quality is not None and self.quality <= 0:
+            user.msg(f"|r{self.get_display_name(user)} breaks and can no longer be used!")
+
+
+class EvAdventureThrowable(EvAdventureWeapon, EvAdventureConsumable):
+    """
+    Something you can throw at an enemy to harm them once, like a knife or exploding potion/grenade.
+
+    Note: In Knave, ranged attacks are done with WIS (representing the stillness of your mind?)
+
+    """
+
+    obj_type = (ObjType.THROWABLE, ObjType.WEAPON, ObjType.CONSUMABLE)
+
+    attack_type = AttributeProperty(Ability.WIS)
+    defense_type = AttributeProperty(Ability.DEX)
     damage_roll = AttributeProperty("1d6")
 
 
@@ -239,3 +340,34 @@ class EvAdventureHelmet(EvAdventureArmor):
 
     obj_type = ObjType.HELMET
     inventory_use_slot = WieldLocation.HEAD
+
+
+class WeaponBareHands(EvAdventureWeapon):
+    """
+    This is a dummy-class loaded when you wield no weapons. We won't create any db-object for it.
+
+    """
+
+    obj_type = ObjType.WEAPON
+    key = "Bare hands"
+    inventory_use_slot = WieldLocation.WEAPON_HAND
+    attack_type = Ability.STR
+    defense_type = Ability.ARMOR
+    damage_roll = "1d4"
+    quality = None  # let's assume fists are always available ...
+
+
+def get_bare_hands():
+    """
+    Get the bare-hands singleton object.
+
+    Returns:
+        WeaponBareHands
+    """
+    global _BARE_HANDS
+
+    if not _BARE_HANDS:
+        _BARE_HANDS = search_object("Bare hands", typeclass=WeaponBareHands).first()
+    if not _BARE_HANDS:
+        _BARE_HANDS = create_object(WeaponBareHands, key="Bare hands")
+    return _BARE_HANDS

@@ -20,6 +20,8 @@ This is used on top of hooks to make certain features easier to add to contribs
 without necessitating a full takeover of hooks that may be in high demand.
 
 """
+from collections import defaultdict
+
 from django.dispatch import Signal
 
 # The sender is the created Account. This is triggered at the very end of
@@ -91,7 +93,15 @@ SIGNAL_CHANNEL_POST_CREATE = Signal()
 # Called just after at_traverse hook.
 SIGNAL_EXIT_TRAVERSED = Signal()
 
-# Django default signals (https://docs.djangoproject.com/en/2.2/topics/signals/)
+# Used as a generic event emitter. Use to make your own signals easily in one place!
+# To use it, import SIGNALS_CUSTOM and use it like a dictionary of Signal objects.
+# Example:
+# from evennia.utils.signals import SIGNALS_CUSTOM
+# SIGNALS_CUSTOM['my_signal'].connect(my_callback)
+# SIGNALS_CUSTOM['my_signal'].send(sender, **kwargs)
+SIGNALS_CUSTOM: dict[str, Signal] = defaultdict(Signal)
+
+# Django default signals (https://docs.djangoproject.com/en/4.1/topics/signals/)
 
 from django.core.signals import request_finished  # "             ends.
 from django.core.signals import request_started  # Sent when HTTP request begins.

@@ -104,8 +104,10 @@ class Msg(SharedMemoryModel):
         null=True,
         blank=True,
         db_index=True,
-        help_text="Identifier for single external sender, for use with senders "
-        "not represented by a regular database model.",
+        help_text=(
+            "Identifier for single external sender, for use with senders "
+            "not represented by a regular database model."
+        ),
     )
 
     db_receivers_accounts = models.ManyToManyField(
@@ -137,8 +139,10 @@ class Msg(SharedMemoryModel):
         null=True,
         blank=True,
         db_index=True,
-        help_text="Identifier for single external receiver, for use with recievers "
-        "not represented by a regular database model.",
+        help_text=(
+            "Identifier for single external receiver, for use with recievers "
+            "not represented by a regular database model."
+        ),
     )
 
     # header could be used for meta-info about the message if your system needs
@@ -167,8 +171,10 @@ class Msg(SharedMemoryModel):
     db_tags = models.ManyToManyField(
         Tag,
         blank=True,
-        help_text="tags on this message. Tags are simple string markers to "
-        "identify, group and alias messages.",
+        help_text=(
+            "tags on this message. Tags are simple string markers to "
+            "identify, group and alias messages."
+        ),
     )
 
     # Database manager
@@ -518,7 +524,7 @@ class TempMsg:
 # ------------------------------------------------------------
 
 
-class SubscriptionHandler(object):
+class SubscriptionHandler:
     """
     This handler manages subscriptions to the
     channel and hides away which type of entity is
@@ -540,13 +546,13 @@ class SubscriptionHandler(object):
     def _recache(self):
         self._cache = {
             account: True
-            for account in self.obj.db_account_subscriptions.all()
+            for account in self.obj.db_account_subscriptions.all().order_by("pk")
             if hasattr(account, "pk") and account.pk
         }
         self._cache.update(
             {
                 obj: True
-                for obj in self.obj.db_object_subscriptions.all()
+                for obj in self.obj.db_object_subscriptions.all().order_by("pk")
                 if hasattr(obj, "pk") and obj.pk
             }
         )
@@ -640,8 +646,6 @@ class SubscriptionHandler(object):
             from django.core.exceptions import ObjectDoesNotExist
 
             try:
-                if hasattr(obj, "account") and obj.account:
-                    obj = obj.account
                 if not obj.is_connected:
                     continue
             except ObjectDoesNotExist:

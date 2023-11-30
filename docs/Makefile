@@ -15,6 +15,9 @@ SPHINXAPIDOCOPTSQUICK = --tocfile evennia-api  --module-first -d 6 --separate --
 SPHINXAPIDOCENV = members,undoc-members,show-inheritance
 SPHINXAPIDOCEXCLUDE = ../*/migrations/* ../evennia/game_template/* ../evennia/*/tests/* ../evennia/*/tests.py
 
+# ../evennia/*/tests.py ../evennia/accounts/tests/* ../evennia/commands/tests/* ../evennia/comms/tests/* ../evennia/help/tests/* ../evennia/locks/tests/* ../evennia/objects/tests/* ../evennia/prototypes/tests/* ../evennia/scripts/tests/* ../evennia/server/tests/* ../evennia/typeclasses/tests/* ../evennia/utils/tests/* ../evennia/web/tests/*  # don't exclude contrib tests for tutorial purposes
+
+
 EVDIR ?= $(realpath ../evennia)
 EVGAMEDIR ?= $(realpath ../../gamedir)
 
@@ -58,10 +61,10 @@ _multiversion-check-env:
 	@EVDIR=$(EVDIR) EVGAMEDIR=$(EVGAMEDIR) bash -e checkenv.sh multiversion
 
 _clean_api_index:
-	rm source/api/*
+	rm -f source/api/*
 
 _clean_api_rsts:
-	rm source/api/*.rst
+	rm -f source/api/*.rst
 
 # remove superfluos 'module' and 'package' text from api headers
 _reformat_apidoc_headers:
@@ -73,7 +76,7 @@ _autodoc-index:
 	make _clean_api_index
 	@EVDIR=$(EVDIR) EVGAMEDIR=$(EVGAMEDIR) SPHINX_APIDOC_OPTIONS=$(SPHINXAPIDOCENV) $(SPHINXAPIDOC) $(SPHINXAPIDOCOPTS) -o $(SOURCEDIR)/api/ $(EVDIR) $(SPHINXAPIDOCEXCLUDE)
 	make _reformat_apidoc_headers
-	pylib/api_rst2md.py
+	python pylib/api_rst2md.py
 
 _quick_autodoc-index:
 	@EVDIR=$(EVDIR) EVGAMEDIR=$(EVGAMEDIR) SPHINX_APIDOC_OPTIONS=$(SPHINXAPIDOCENV) $(SPHINXAPIDOC) $(SPHINXAPIDOCOPTSQUICK) -o $(SOURCEDIR)/api/ $(EVDIR) $(SPHINXAPIDOCEXCLUDE)

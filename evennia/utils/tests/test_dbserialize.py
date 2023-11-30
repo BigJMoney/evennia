@@ -116,6 +116,18 @@ class TestDbSerialize(TestCase):
         self.obj.db.test |= {"b": [5, 6]}
         self.assertEqual(self.obj.db.test, {"a": [1, 2, 3], "b": [5, 6]})
 
+    def test_deque_with_maxlen(self):
+        _dd = deque((), maxlen=1)
+        _dd.append(1)
+        _dd.append(2)
+        self.assertEqual(list(_dd), [2])
+
+        dd = deque((), maxlen=1)
+        self.obj.db.test = dd
+        self.obj.db.test.append(1)
+        self.obj.db.test.append(2)
+        self.assertEqual(list(self.obj.db.test), [2])
+
 
 class _InvalidContainer:
     """Container not saveable in Attribute (if obj is dbobj, it 'hides' it)"""
@@ -192,7 +204,6 @@ class DbObjWrappers(TestCase):
         self.assertEqual(self.dbobj1.db.dict["key2"].hidden_obj, self.dbobj2)
 
     def test_dbobj_hidden_defaultdict(self):
-
         con1 = _ValidContainer(self.dbobj2)
         con2 = _ValidContainer(self.dbobj2)
 

@@ -6,7 +6,7 @@ Knave has a system of Slots for its inventory.
 from evennia.utils.utils import inherits_from
 
 from .enums import Ability, WieldLocation
-from .objects import EvAdventureObject, WeaponEmptyHand
+from .objects import EvAdventureObject, get_bare_hands
 
 
 class EquipmentError(TypeError):
@@ -49,6 +49,9 @@ class EquipmentHandler:
                 WieldLocation.BACKPACK: [],
             },
         )
+        self.slots[WieldLocation.BACKPACK] = [
+            obj for obj in self.slots[WieldLocation.BACKPACK] if obj and obj.id
+        ]
 
     def _save(self):
         """
@@ -90,9 +93,6 @@ class EquipmentHandler:
         Args:
             obj (EvAdventureObject): The object to add.
 
-        Raise:
-            EquipmentError: If there's not enough room.
-
         """
         if not inherits_from(obj, EvAdventureObject):
             raise EquipmentError(f"{obj.key} is not something that can be equipped.")
@@ -100,6 +100,7 @@ class EquipmentHandler:
         size = obj.size
         max_slots = self.max_slots
         current_slot_usage = self.count_slots()
+
         if current_slot_usage + size > max_slots:
             slots_left = max_slots - current_slot_usage
             raise EquipmentError(
@@ -167,7 +168,7 @@ class EquipmentHandler:
         if not weapon:
             weapon = slots[WieldLocation.WEAPON_HAND]
         if not weapon:
-            weapon = WeaponEmptyHand()
+            weapon = get_bare_hands()
         return weapon
 
     def display_loadout(self):
@@ -357,7 +358,9 @@ class EquipmentHandler:
         return [
             obj
             for obj in self.slots[WieldLocation.BACKPACK]
-            if obj.inventory_use_slot
+            if obj
+            and obj.id
+            and obj.inventory_use_slot
             in (WieldLocation.WEAPON_HAND, WieldLocation.TWO_HANDS, WieldLocation.SHIELD_HAND)
         ]
 
@@ -375,7 +378,7 @@ class EquipmentHandler:
         return [
             obj
             for obj in self.slots[WieldLocation.BACKPACK]
-            if obj.inventory_use_slot in (WieldLocation.BODY, WieldLocation.HEAD)
+            if obj and obj.id and obj.inventory_use_slot in (WieldLocation.BODY, WieldLocation.HEAD)
         ]
 
     def get_usable_objects_from_backpack(self):
@@ -388,7 +391,9 @@ class EquipmentHandler:
 
         """
         character = self.obj
-        return [obj for obj in self.slots[WieldLocation.BACKPACK] if obj.at_pre_use(character)]
+        return [
+            obj for obj in self.slots[WieldLocation.BACKPACK] if obj and obj.at_pre_use(character)
+        ]
 
     def all(self, only_objs=False):
         """

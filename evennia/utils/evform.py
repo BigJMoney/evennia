@@ -61,8 +61,8 @@ Usage
 ```python
 from evennia import EvForm, EvTable
 
-# create a new form from the template
-form = EvForm("path/to/testform.py")
+# create a new form from the template - using the python path
+form = EvForm("path.to.testform")
 
 # alteratively, you can supply the template as a dict:
 
@@ -431,8 +431,7 @@ class EvForm:
             return rects
 
         # Map EvCells into form rectangles
-        for (key, y, x, width, height) in _get_rectangles(formchar):
-
+        for key, y, x, width, height in _get_rectangles(formchar):
             # get data to populate cell
             data = self.cells_mapping.get(key, "")
             if isinstance(data, EvCell):
@@ -455,8 +454,7 @@ class EvForm:
             mapping[key] = (y, x, width, height, cell)
 
         # Map EvTables into form rectangles
-        for (key, y, x, width, height) in _get_rectangles(tablechar):
-
+        for key, y, x, width, height in _get_rectangles(tablechar):
             # get EvTable from mapping
             table = self.tables_mapping.get(key, None)
 
@@ -479,7 +477,6 @@ class EvForm:
         mapping = self.mapping
 
         for key, (y, x, width, height, cell_or_table) in mapping.items():
-
             # rect is a list of <height> lines, each <width> wide
             rect = cell_or_table.get()
             for il, rectline in enumerate(rect):

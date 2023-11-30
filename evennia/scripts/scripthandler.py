@@ -77,10 +77,14 @@ class ScriptHandler(object):
             script = create.create_script(
                 scriptclass, key=key, account=self.obj, autostart=autostart
             )
-        else:
-            # adding to an Object. We wait to autostart so we can differentiate
-            # a failing creation from a script that immediately starts/stops.
+        elif isinstance(scriptclass, str) or callable(scriptclass):
+            # a str or class to use create before adding to an Object. We wait to autostart
+            # so we can differentiate a failing creation from a script that immediately starts/stops.
             script = create.create_script(scriptclass, key=key, obj=self.obj, autostart=False)
+        else:
+            # already an instantiated class
+            script = scriptclass
+
         if not script:
             logger.log_err(f"Script {scriptclass} failed to be created.")
             return None
@@ -111,6 +115,19 @@ class ScriptHandler(object):
             script.start()
             num += 1
         return num
+
+    def has(self, key):
+        """
+        Determine if a given script exists on this object.
+
+        Args:
+            key (str): Search criterion, the script's key or dbref.
+
+        Returns:
+            bool: If the script exists or not.
+
+        """
+        return ScriptDB.objects.get_all_scripts_on_obj(self.obj, key=key).exists()
 
     def get(self, key):
         """

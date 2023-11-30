@@ -99,28 +99,31 @@ class Tag(models.Model):
 
 class TagProperty:
     """
-    Tag property descriptor. Allows for setting tags on an object as Django-like 'fields'
-    on the class level. Since Tags are almost always used for querying, Tags are always
-    created/assigned along with the object. Make sure the property/tagname does not collide
-    with an existing method/property on the class. If it does, you must use tags.add()
-    instead.
-
-    Note that while you _can_ check e.g. `obj.tagname,this will give an AttributeError
-    if the Tag is not set. Most often you want to use `obj.tags.get("tagname")` to check
-    if a tag is set on an object.
-
-    Example:
-    ::
-
-            class Character(DefaultCharacter):
-                mytag = TagProperty()  # category=None
-                mytag2 = TagProperty(category="tagcategory")
-
+    Tag Property.
     """
 
     taghandler_name = "tags"
 
     def __init__(self, category=None, data=None):
+        """
+        Tag property descriptor. Allows for setting tags on an object as Django-like 'fields'
+        on the class level. Since Tags are almost always used for querying, Tags are always
+        created/assigned along with the object. Make sure the property/tagname does not collide
+        with an existing method/property on the class. If it does, you must use tags.add()
+        instead.
+
+        Note that while you _can_ check e.g. `obj.tagname,this will give an AttributeError
+        if the Tag is not set. Most often you want to use `obj.tags.get("tagname")` to check
+        if a tag is set on an object.
+
+        Example:
+        ::
+
+                class Character(DefaultCharacter):
+                    mytag = TagProperty()  # category=None
+                    mytag2 = TagProperty(category="tagcategory")
+        """
+
         self._category = category
         self._data = data
         self._key = ""
@@ -165,6 +168,120 @@ class TagProperty:
 
         """
         getattr(instance, self.taghandler_name).remove(key=self._key, category=self._category)
+
+
+class TagCategoryProperty:
+    """
+    Tag Category Property.
+
+    """
+
+    taghandler_name = "tags"
+
+    def __init__(self, *default_tags):
+        """
+        Assign a property for a Tag Category, with any number of Tag keys.
+        This is often more useful than the `TagProperty` since it's common to want to check which
+        tags of a particular category the object is a member of.
+
+        Args:
+            *args (str or callable): Tag keys to assign to this property, using the category given
+                by the name of the property. Note that, if these tags are always set on the object,
+                if they are removed by some other means, they will be re-added when this property
+                is accessed. Furthermore, changing this list after the object was created, will
+                not remove any old tags (there is no way for the property to know if the
+                new list is new or not).  If a callable, it will be called without arguments to
+                return the tag key. It is not possible to set tag `data` this way (use the
+                Taghandler directly for that). Tag keys are not case sensitive.
+
+        Raises:
+            ValueError: If the input is not a valid tag key or tuple.
+
+        Notes:
+            It is not possible to set Tags with a `None` category using a `TagCategoryProperty` -
+            use `obj.tags.add()` instead.
+
+        Example:
+        ::
+
+                class RogueCharacter(DefaultCharacter):
+                    guild = TagProperty("thieves_guild", "merchant_guild")
+
+        """
+        self._category = ""
+        self._default_tags = self._parse_tag_input(*default_tags)
+
+    def _parse_tag_input(self, *args):
+        """
+        Parse input to the property.
+
+        Args:
+            *args (str or callable): Tags, either as strings or `callable`, which should return
+            the tag key when called without arguments. Keys are not case sensitive.
+
+        Returns:
+            list: A list of tag keys.
+
+        """
+        tags = []
+        for tagkey in args:
+            if callable(tagkey):
+                tagkey = tagkey()
+            tags.append((str(tagkey).lower()))
+        return tags
+
+    def __set_name__(self, cls, name):
+        """
+        Called when descriptor is first assigned to the class (not the instance!).
+        It is called with the name of the field.
+
+        """
+        self._category = name
+
+    def __get__(self, instance, owner):
+        """
+        Called when accessing the tag as a property on the instance. Returns a list
+        of tags under the given category.
+        """
+        taghandler = getattr(instance, self.taghandler_name)
+
+        default_tags = self._default_tags
+        tags = taghandler.get(category=self._category, return_list=True)
+
+        missing_default_tags = set(default_tags) - set(tags)
+
+        if missing_default_tags:
+            getattr(instance, self.taghandler_name).batch_add(
+                *[(tag, self._category) for tag in missing_default_tags]
+            )
+
+            tags += missing_default_tags  # to avoid a second db call
+
+        return tags
+
+    def __set__(self, instance, *args):
+        """
+        Assign a new set of tags to the category. Note that we can't know if previous
+        tags were assigned from this property or from TagHandler, so we don't
+        remove old tags. To refresh to only have the tags in this constructor, first
+        use `del` on this property and re-access the property with the changed default list.
+
+        """
+        getattr(instance, self.taghandler_name).batch_add(*[(tag, self._category) for tag in args])
+
+    def __delete__(self, instance):
+        """
+        Called when running `del` on the property. Will remove all tags of this
+        category from the object. Note that next time this desriptor is accessed, the
+        default ones will be re-added!
+
+        Note:
+            This will remove _all_ tags of this category from the object. This is necessary
+            in order to be able to be able to combine this with `__set__` to get a tag
+            list where property and handler are in sync.
+
+        """
+        getattr(instance, self.taghandler_name).remove(category=self._category)
 
 
 class TagHandler(object):
@@ -254,7 +371,7 @@ class TagHandler(object):
             database lookup.
 
         """
-        key = key.strip().lower() if key else None
+        key = str(key).strip().lower() if key else None
         category = category.strip().lower() if category else None
         if key:
             cachekey = "%s-%s" % (key, category)
@@ -323,7 +440,10 @@ class TagHandler(object):
             return
         if not key:  # don't allow an empty key in cache
             return
-        key, category = (key.strip().lower(), category.strip().lower() if category else category)
+        key, category = (
+            str(key).strip().lower(),
+            category.strip().lower() if category else category,
+        )
         cachekey = "%s-%s" % (key, category)
         catkey = "-%s" % category
         self._cache[cachekey] = tag_obj
@@ -340,7 +460,10 @@ class TagHandler(object):
             category (str or None): A cleaned category name
 
         """
-        key, category = (key.strip().lower(), category.strip().lower() if category else category)
+        key, category = (
+            str(key).strip().lower(),
+            category.strip().lower() if category else category,
+        )
         catkey = "-%s" % category
         if key:
             cachekey = "%s-%s" % (key, category)
@@ -419,7 +542,7 @@ class TagHandler(object):
         category = category.strip().lower() if category is not None else None
         if key:
             for tag_str in make_iter(key):
-                tag_str = tag_str.strip().lower()
+                tag_str = str(tag_str).strip().lower()
                 ret.append(bool(self._getcache(tag_str, category)))
         elif category:
             ret.extend(bool(tag) for tag in self._getcache(category=category))
@@ -507,7 +630,7 @@ class TagHandler(object):
         for key in make_iter(key):
             if not (key or key.strip()):  # we don't allow empty tags
                 continue
-            tagstr = key.strip().lower()
+            tagstr = str(key).strip().lower()
             category = category.strip().lower() if category else category
 
             # This does not delete the tag object itself. Maybe it should do
@@ -595,7 +718,7 @@ class TagHandler(object):
         for tup in args:
             tup = make_iter(tup)
             nlen = len(tup)
-            if nlen == 1:  # just a key
+            if nlen == 1:  # just a key, no category
                 keys[None].append(tup[0])
             elif nlen == 2:
                 keys[tup[1]].append(tup[0])
@@ -604,6 +727,27 @@ class TagHandler(object):
                 data[tup[1]] = tup[2]  # overwrite previous
         for category, key in keys.items():
             self.add(key=key, category=category, data=data.get(category, None))
+
+    def batch_remove(self, *args):
+        """
+        Batch-remove tags from a list of tuples.
+
+        Args:
+            *args (tuple or str): Each argument should be a `tagstr` keys or tuple
+                `(keystr, category)` or `(keystr, category, data)` (the `data` field is ignored,
+                only `keystr`/`category` matters). It's possible to mix input types.
+
+        """
+        keys = defaultdict(list)
+        for tup in args:
+            tup = make_iter(tup)
+            nlen = len(tup)
+            if nlen == 1:  # just a key, no category
+                keys[None].append(tup[0])
+            elif nlen > 1:
+                keys[tup[1]].append(tup[0])
+        for category, key in keys.items():
+            self.remove(key=key, category=category, data=data.get(category, None))
 
     def __str__(self):
         return ",".join(self.all())

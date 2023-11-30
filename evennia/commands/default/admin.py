@@ -9,8 +9,8 @@ import time
 
 from django.conf import settings
 
+import evennia
 from evennia.server.models import ServerConfig
-from evennia.server.sessionhandler import SESSIONS
 from evennia.utils import class_from_module, evtable, logger, search
 
 COMMAND_DEFAULT_CLASS = class_from_module(settings.COMMAND_DEFAULT_CLASS)
@@ -68,7 +68,7 @@ class CmdBoot(COMMAND_DEFAULT_CLASS):
 
         if "sid" in self.switches:
             # Boot a particular session id.
-            sessions = SESSIONS.get_sessions(True)
+            sessions = evennia.SESSION_HANDLER.get_sessions(True)
             for sess in sessions:
                 # Find the session with the matching session id.
                 if sess.sessid == int(args):
@@ -85,7 +85,7 @@ class CmdBoot(COMMAND_DEFAULT_CLASS):
                 caller.msg(f"You don't have the permission to boot {pobj.key}.")
                 return
             # we have a bootable object with a connected user
-            matches = SESSIONS.sessions_from_account(pobj)
+            matches = evennia.SESSION_HANDLER.sessions_from_account(pobj)
             for match in matches:
                 boot_list.append(match)
 
@@ -464,7 +464,7 @@ class CmdPerm(COMMAND_DEFAULT_CLASS):
                 caller.msg("You are not allowed to examine this object.")
                 return
 
-            string = f"Permissions on |{obj.key}|n: "
+            string = f"Permissions on |w{obj.key}|n: "
             if not obj.permissions.all():
                 string += "<None>"
             else:
@@ -511,7 +511,6 @@ class CmdPerm(COMMAND_DEFAULT_CLASS):
             permissions = obj.permissions.all()
 
             for perm in self.rhslist:
-
                 # don't allow to set a permission higher in the hierarchy than
                 # the one the caller has (to prevent self-escalation)
                 if perm.lower() in PERMISSION_HIERARCHY and not obj.locks.check_lockstring(
@@ -564,7 +563,7 @@ class CmdWall(COMMAND_DEFAULT_CLASS):
             return
         message = f'{self.caller.name} shouts "{self.args}"'
         self.msg("Announcing to all connected sessions ...")
-        SESSIONS.announce_all(message)
+        evennia.SESSION_HANDLER.announce_all(message)
 
 
 class CmdForce(COMMAND_DEFAULT_CLASS):

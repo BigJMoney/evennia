@@ -108,11 +108,12 @@ class CmdHelp(COMMAND_DEFAULT_CLASS):
     # should topics disply their help entry when clicked
     clickable_topics = HELP_CLICKABLE_TOPICS
 
-    def msg_help(self, text):
+    def msg_help(self, text, **kwargs):
         """
         messages text to the caller, adding an extra oob argument to indicate
         that this is a help command result and could be rendered in a separate
-        help window
+        help window.
+
         """
         if type(self).help_more:
             usemore = True
@@ -129,7 +130,11 @@ class CmdHelp(COMMAND_DEFAULT_CLASS):
                     pass
 
             if usemore:
-                evmore.msg(self.caller, text, session=self.session)
+                # adding the 'text_kwargs' keyword means it will be sent with the text outputfunc
+                # for every page.
+                evmore.msg(
+                    self.caller, text, session=self.session, text_kwargs={"type": "help"}, **kwargs
+                )
                 return
 
         self.msg(text=(text, {"type": "help"}))
@@ -627,7 +632,7 @@ class CmdHelp(COMMAND_DEFAULT_CLASS):
                     )
                     if suggestions:
                         help_text += (
-                            "\n... But matches where found within the help "
+                            "\n... But matches were found within the help "
                             "texts of the suggestions below."
                         )
                         suggestions = [
@@ -692,7 +697,6 @@ class CmdHelp(COMMAND_DEFAULT_CLASS):
             # the subtopics is a list describing the path through the subtopic_map.
 
             for subtopic_query in subtopics:
-
                 if subtopic_query not in subtopic_map:
                     # exact match failed. Try startswith-match
                     fuzzy_match = False

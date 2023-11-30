@@ -4,6 +4,7 @@ of using an Enum over, say, a string is that if you make a typo using an unknown
 enum, Python will give you an error while a typo in a string may go through silently.
 
 It's used as a direct reference:
+::
 
     from enums import Ability
 
@@ -12,6 +13,8 @@ It's used as a direct reference:
 
 To get the `value` of an enum (must always be hashable, useful for Attribute lookups), use
 `Ability.STR.value` (which would return 'strength' in our case).
+
+----
 
 """
 from enum import Enum
@@ -38,6 +41,16 @@ class Ability(Enum):
     ALLEGIANCE_HOSTILE = "hostile"
     ALLEGIANCE_NEUTRAL = "neutral"
     ALLEGIANCE_FRIENDLY = "friendly"
+
+
+ABILITY_REVERSE_MAP = {
+    "str": Ability.STR,
+    "dex": Ability.DEX,
+    "con": Ability.CON,
+    "int": Ability.INT,
+    "wis": Ability.WIS,
+    "cha": Ability.CHA,
+}
 
 
 class WieldLocation(Enum):
@@ -67,6 +80,7 @@ class ObjType(Enum):
     HELMET = "helmet"
     CONSUMABLE = "consumable"
     GEAR = "gear"
+    THROWABLE = "throwable"
     MAGIC = "magic"
     QUEST = "quest"
     TREASURE = "treasure"

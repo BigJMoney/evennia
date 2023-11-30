@@ -16,15 +16,15 @@ from twisted.web.http_headers import Headers
 from twisted.web.iweb import IBodyProducer
 from zope.interface import implementer
 
+import evennia
 from evennia.accounts.models import AccountDB
-from evennia.server.sessionhandler import SESSIONS
 from evennia.utils import get_evennia_version, logger
 
 _EGI_HOST = "http://evennia-game-index.appspot.com"
 _EGI_REPORT_PATH = "/api/v1/game/check_in"
 
 
-class EvenniaGameIndexClient(object):
+class EvenniaGameIndexClient:
     """
     This client class is used for gathering and sending game details to the
     Evennia Game Index. Since EGI is in the early goings, this isn't
@@ -33,8 +33,8 @@ class EvenniaGameIndexClient(object):
 
     def __init__(self, on_bad_request=None):
         """
-        :param on_bad_request: Optional callable to trigger when a bad request
-            was sent. This is almost always going to be due to bad config.
+        on_bad_request (callable, optional): Callable to trigger when a bad request was sent.
+
         """
         self.report_host = _EGI_HOST
         self.report_path = _EGI_REPORT_PATH
@@ -98,7 +98,7 @@ class EvenniaGameIndexClient(object):
                 "telnet_port": egi_config.get("telnet_port", ""),
                 "web_client_url": egi_config.get("web_client_url", ""),
                 # Game stats
-                "connected_account_count": SESSIONS.account_count(),
+                "connected_account_count": evennia.SESSION_HANDLER.account_count(),
                 "total_account_count": AccountDB.objects.num_total_accounts() or 0,
                 # System info
                 "evennia_version": get_evennia_version(),
@@ -150,7 +150,7 @@ class SimpleResponseReceiver(protocol.Protocol):
 
 
 @implementer(IBodyProducer)
-class StringProducer(object):
+class StringProducer:
     """
     Used for feeding a request body to the tx HTTP client.
     """

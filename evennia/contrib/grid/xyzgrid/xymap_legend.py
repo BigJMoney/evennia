@@ -13,8 +13,7 @@ try:
     from scipy import zeros
 except ImportError as err:
     raise ImportError(
-        f"{err}\nThe XYZgrid contrib requires "
-        "the SciPy package. Install with `pip install scipy'."
+        f"{err}\nThe XYZgrid contrib requires the SciPy package. Install with `pip install scipy'."
     )
 
 import uuid
@@ -184,7 +183,6 @@ class MapNode:
 
         # scan in all directions for links
         for direction, (dx, dy) in MAPSCAN.items():
-
             lx, ly = x + dx, y + dy
 
             if lx in xygrid and ly in xygrid[lx]:
@@ -275,7 +273,6 @@ class MapNode:
         return self.X, self.Y, self.Z
 
     def get_exit_spawn_name(self, direction, return_aliases=True):
-
         """
         Retrieve the spawn name for the exit being created by this link.
 
@@ -367,7 +364,6 @@ class MapNode:
 
         maplinks = {}
         for direction, link in self.first_links.items():
-
             key, *aliases = self.get_exit_spawn_name(direction)
             if not link.prototype.get("prototype_key"):
                 # generate a deterministic prototype_key if it doesn't exist
@@ -391,7 +387,6 @@ class MapNode:
         # build all exits first run)
         differing_keys = set(maplinks.keys()).symmetric_difference(set(linkobjs.keys()))
         for differing_key in differing_keys:
-
             if differing_key not in maplinks:
                 # an exit without a maplink - delete the exit-object
                 self.log(f"  deleting exit at xyz={xyz}, direction={differing_key}")
@@ -409,7 +404,7 @@ class MapNode:
                 typeclass = prot.get("typeclass")
                 if typeclass is None:
                     raise MapError(
-                        f"The prototype {self.prototype} for this node has no 'typeclass' key.",
+                        f"The prototype {prot} for this node has no 'typeclass' key.",
                         self,
                     )
                 self.log(f"  spawning/updating exit xyz={xyz}, direction={key} ({typeclass})")
@@ -512,6 +507,10 @@ class MapLink:
     MapNodes. A Link can be placed on any location in the grid, but even when
     on an integer XY position they still don't represent an actual in-game place
     but just a link between such places (the Nodes).
+
+    > Note that, if you want to create a child link-class that spawns onto the grid
+    (usually an exit), you must set its `.prototype`. This parent class will not on
+    its own spawn anything.
 
     Each link has a 'weight' >=1,  this indicates how 'slow'
     it is to traverse that link. This is used by the Dijkstra algorithm
@@ -978,7 +977,7 @@ class SmartTeleporterMapLink(MapLink):
             direction, link = next(iter(neighbors.items()))
             if hasattr(link, "node_index"):
                 raise MapParserError(
-                    "can only connect to a Link. Found {link} in " "direction {direction}.", self
+                    "can only connect to a Link. Found {link} in direction {direction}.", self
                 )
             # the string 'teleport' will not be understood by the traverser, leading to
             # this being interpreted as an empty target and the `at_empty_target`

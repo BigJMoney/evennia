@@ -6,12 +6,13 @@ from random import choice
 
 from evennia import DefaultCharacter
 from evennia.typeclasses.attributes import AttributeProperty
+from evennia.typeclasses.tags import TagProperty
 from evennia.utils.evmenu import EvMenu
 from evennia.utils.utils import make_iter
 
 from .characters import LivingMixin
 from .enums import Ability, WieldLocation
-from .objects import WeaponEmptyHand
+from .objects import get_bare_hands
 from .rules import dice
 
 
@@ -50,8 +51,12 @@ class EvAdventureNPC(LivingMixin, DefaultCharacter):
 
     is_idle = AttributeProperty(default=False, autocreate=False)
 
-    weapon = AttributeProperty(default=WeaponEmptyHand, autocreate=False)  # instead of inventory
+    weapon = AttributeProperty(default=get_bare_hands, autocreate=False)  # instead of inventory
     coins = AttributeProperty(default=1, autocreate=False)  # coin loot
+
+    # if this npc is attacked, everyone with the same tag in the current location will also be
+    # pulled into combat.
+    group = TagProperty("npcs")
 
     @property
     def strength(self):
@@ -87,8 +92,16 @@ class EvAdventureNPC(LivingMixin, DefaultCharacter):
 
         """
         self.hp = self.hp_max
+        self.tags.add("npcs", category="group")
 
-    def ai_combat_next_action(self):
+    def at_attacked(self, attacker, **kwargs):
+        """
+        Called when being attacked and combat starts.
+
+        """
+        pass
+
+    def ai_next_action(self, **kwargs):
         """
         The combat engine should ask this method in order to
         get the next action the npc should perform in combat.
@@ -243,7 +256,7 @@ class EvAdventureMob(EvAdventureNPC):
     # chance (%) that this enemy will loot you when defeating you
     loot_chance = AttributeProperty(75, autocreate=False)
 
-    def ai_combat_next_action(self, combathandler):
+    def ai_next_action(self, **kwargs):
         """
         Called to get the next action in combat.
 
@@ -256,7 +269,7 @@ class EvAdventureMob(EvAdventureNPC):
             combatant in the current combat handler.
 
         """
-        from .combat_turnbased import CombatActionAttack, CombatActionDoNothing
+        from .combat import CombatActionAttack, CombatActionDoNothing
 
         if self.is_idle:
             # mob just stands around

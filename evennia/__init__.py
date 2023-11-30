@@ -16,6 +16,7 @@ to launch such a shell (using python or ipython depending on your install).
 See www.evennia.com for full documentation.
 
 """
+import evennia
 
 # docstring header
 
@@ -47,10 +48,12 @@ AccountDB = None
 ScriptDB = None
 ChannelDB = None
 Msg = None
+ServerConfig = None
 
 # Properties
 AttributeProperty = None
 TagProperty = None
+TagCategoryProperty = None
 
 # commands
 Command = None
@@ -93,9 +96,12 @@ EvEditor = None
 EvMore = None
 ANSIString = None
 signals = None
+FuncParser = None
 
 # Handlers
 SESSION_HANDLER = None
+PORTAL_SESSION_HANDLER = None
+SERVER_SESSION_HANDLER = None
 TASK_HANDLER = None
 TICKER_HANDLER = None
 MONITOR_HANDLER = None
@@ -103,6 +109,12 @@ MONITOR_HANDLER = None
 # Containers
 GLOBAL_SCRIPTS = None
 OPTION_CLASSES = None
+
+PROCESS_ID = None
+
+TWISTED_APPLICATION = None
+EVENNIA_PORTAL_SERVICE = None
+EVENNIA_SERVER_SERVICE = None
 
 
 def _create_version():
@@ -135,13 +147,21 @@ def _create_version():
 __version__ = _create_version()
 del _create_version
 
+_LOADED = False
 
-def _init():
+PORTAL_MODE = False
+
+
+def _init(portal_mode=False):
     """
     This function is called automatically by the launcher only after
     Evennia has fully initialized all its models. It sets up the API
     in a safe environment where all models are available already.
     """
+    global _LOADED
+    if _LOADED:
+        return
+    _LOADED = True
     global DefaultAccount, DefaultObject, DefaultGuest, DefaultCharacter
     global DefaultRoom, DefaultExit, DefaultChannel, DefaultScript
     global ObjectDB, AccountDB, ScriptDB, ChannelDB, Msg
@@ -152,15 +172,19 @@ def _init():
     global create_message, create_help_entry
     global signals
     global settings, lockfuncs, logger, utils, gametime, ansi, spawn, managers
-    global contrib, TICKER_HANDLER, MONITOR_HANDLER, SESSION_HANDLER
-    global TASK_HANDLER
-    global GLOBAL_SCRIPTS, OPTION_CLASSES
+    global contrib, TICKER_HANDLER, MONITOR_HANDLER, SESSION_HANDLER, PROCESS_ID
+    global TASK_HANDLER, PORTAL_SESSION_HANDLER, SERVER_SESSION_HANDLER
+    global GLOBAL_SCRIPTS, OPTION_CLASSES, EVENNIA_PORTAL_SERVICE, EVENNIA_SERVER_SERVICE, TWISTED_APPLICATION
     global EvMenu, EvTable, EvForm, EvMore, EvEditor
-    global ANSIString
-    global AttributeProperty, TagProperty
+    global ANSIString, FuncParser
+    global AttributeProperty, TagProperty, TagCategoryProperty, ServerConfig
+    global PORTAL_MODE
+    PORTAL_MODE = portal_mode
 
     # Parent typeclasses
     # utilities
+    import os
+
     from django.conf import settings
 
     from . import contrib
@@ -185,14 +209,15 @@ def _init():
     from .scripts.taskhandler import TASK_HANDLER
     from .scripts.tickerhandler import TICKER_HANDLER
     from .server import signals
-    from .server.sessionhandler import SESSION_HANDLER
+    from .server.models import ServerConfig
     from .typeclasses.attributes import AttributeProperty
-    from .typeclasses.tags import TagProperty
-    from .utils import ansi, gametime, logger
+    from .typeclasses.tags import TagCategoryProperty, TagProperty
+    from .utils import ansi, class_from_module, gametime, logger
     from .utils.ansi import ANSIString
 
-    # containers
-    from .utils.containers import GLOBAL_SCRIPTS, OPTION_CLASSES
+    if not PORTAL_MODE:
+        # containers
+        from .utils.containers import GLOBAL_SCRIPTS, OPTION_CLASSES
 
     # create functions
     from .utils.create import (
@@ -208,6 +233,7 @@ def _init():
     from .utils.evmenu import EvMenu
     from .utils.evmore import EvMore
     from .utils.evtable import EvTable
+    from .utils.funcparser import FuncParser
 
     # search functions
     from .utils.search import (
@@ -219,6 +245,48 @@ def _init():
         search_script,
         search_tag,
     )
+    from .utils.utils import class_from_module
+
+    PROCESS_ID = os.getpid()
+
+    from twisted.application.service import Application
+
+    TWISTED_APPLICATION = Application("Evennia")
+
+    _evennia_service_class = None
+
+    if portal_mode:
+        # Set up the PortalSessionHandler
+        from evennia.server.portal import portalsessionhandler
+
+        portal_sess_handler_class = class_from_module(settings.PORTAL_SESSION_HANDLER_CLASS)
+        portalsessionhandler.PORTAL_SESSIONS = portal_sess_handler_class()
+        SESSION_HANDLER = portalsessionhandler.PORTAL_SESSIONS
+        evennia.PORTAL_SESSION_HANDLER = evennia.SESSION_HANDLER
+        _evennia_service_class = class_from_module(settings.EVENNIA_PORTAL_SERVICE_CLASS)
+        EVENNIA_PORTAL_SERVICE = _evennia_service_class()
+        EVENNIA_PORTAL_SERVICE.setServiceParent(TWISTED_APPLICATION)
+
+        from django.db import connection
+
+        # we don't need a connection to the database so close it right away
+        try:
+            connection.close()
+        except Exception:
+            pass
+
+    else:
+        # Create the ServerSesssionHandler
+        from evennia.server import sessionhandler
+
+        sess_handler_class = class_from_module(settings.SERVER_SESSION_HANDLER_CLASS)
+        sessionhandler.SESSIONS = sess_handler_class()
+        sessionhandler.SESSION_HANDLER = sessionhandler.SESSIONS
+        SESSION_HANDLER = sessionhandler.SESSIONS
+        SERVER_SESSION_HANDLER = SESSION_HANDLER
+        _evennia_service_class = class_from_module(settings.EVENNIA_SERVER_SERVICE_CLASS)
+        EVENNIA_SERVER_SERVICE = _evennia_service_class()
+        EVENNIA_SERVER_SERVICE.setServiceParent(TWISTED_APPLICATION)
 
     # API containers
 
@@ -362,10 +430,6 @@ def _init():
     syscmdkeys = SystemCmds()
     del SystemCmds
     del _EvContainer
-
-    # delayed starts - important so as to not back-access evennia before it has
-    # finished initializing
-    GLOBAL_SCRIPTS.start()
 
 
 def set_trace(term_size=(140, 80), debugger="auto"):

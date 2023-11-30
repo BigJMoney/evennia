@@ -16,9 +16,9 @@ import django
 import twisted
 from django.conf import settings
 
+import evennia
 from evennia.accounts.models import AccountDB
 from evennia.scripts.taskhandler import TaskHandlerTask
-from evennia.server.sessionhandler import SESSIONS
 from evennia.utils import gametime, logger, search, utils
 from evennia.utils.eveditor import EvEditor
 from evennia.utils.evmenu import ask_yes_no
@@ -74,8 +74,8 @@ class CmdReload(COMMAND_DEFAULT_CLASS):
         if self.args:
             reason = "(Reason: %s) " % self.args.rstrip(".")
         if _BROADCAST_SERVER_RESTART_MESSAGES:
-            SESSIONS.announce_all(f" Server restart initiated {reason}...")
-        SESSIONS.portal_restart_server()
+            evennia.SESSION_HANDLER.announce_all(f" Server restart initiated {reason}...")
+        evennia.SESSION_HANDLER.portal_restart_server()
 
 
 class CmdReset(COMMAND_DEFAULT_CLASS):
@@ -108,8 +108,8 @@ class CmdReset(COMMAND_DEFAULT_CLASS):
         """
         Reload the system.
         """
-        SESSIONS.announce_all(" Server resetting/restarting ...")
-        SESSIONS.portal_reset_server()
+        evennia.SESSION_HANDLER.announce_all(" Server resetting/restarting ...")
+        evennia.SESSION_HANDLER.portal_reset_server()
 
 
 class CmdShutdown(COMMAND_DEFAULT_CLASS):
@@ -137,8 +137,8 @@ class CmdShutdown(COMMAND_DEFAULT_CLASS):
         if self.args:
             announcement += "%s\n" % self.args
         logger.log_info(f"Server shutdown by {self.caller.name}.")
-        SESSIONS.announce_all(announcement)
-        SESSIONS.portal_shutdown()
+        evennia.SESSION_HANDLER.announce_all(announcement)
+        evennia.SESSION_HANDLER.portal_shutdown()
 
 
 def _py_load(caller):
@@ -179,7 +179,6 @@ def _run_code_snippet(
 
     """
     # Try to retrieve the session
-    session = caller
     if hasattr(caller, "sessions"):
         sessions = caller.sessions.all()
 
@@ -187,10 +186,15 @@ def _run_code_snippet(
 
     if show_input:
         for session in sessions:
+            data = {
+                # TODO: 'highlight' is not used yet
+                "text": (f">>> {pycode}", {"type": "py_input"}),
+                "options": {"raw": True, "highlight": True},
+            }
             try:
-                caller.msg(">>> %s" % pycode, session=session, options={"raw": True})
+                caller.msg(session=session, **data)
             except TypeError:
-                caller.msg(">>> %s" % pycode, options={"raw": True})
+                caller.msg(**data)
 
     try:
         # reroute standard output to game client console
@@ -202,10 +206,7 @@ def _run_code_snippet(
                 self.caller = caller
 
             def write(self, string):
-                if string.endswith("\n"):
-                    self.caller.msg(string[:-1])
-                else:
-                    self.caller.msg(string)
+                self.caller.msg(text=(string.rstrip("\n"), {"type": "py_output"}))
 
         fake_std = FakeStd(caller)
         sys.stdout = fake_std
@@ -222,7 +223,7 @@ def _run_code_snippet(
             t0 = time.time()
             ret = eval(pycode_compiled, {}, available_vars)
             t1 = time.time()
-            duration = " (runtime ~ %.4f ms)" % ((t1 - t0) * 1000)
+            duration = f" (runtime ~ {(t1 - t0) * 1000:.4f} ms)"
             caller.msg(duration)
         else:
             ret = eval(pycode_compiled, {}, available_vars)
@@ -239,16 +240,27 @@ def _run_code_snippet(
 
     if ret is None:
         return
-    elif isinstance(ret, tuple):
+
+    if not client_raw:
+        ret = str(ret)
+
+    if isinstance(ret, tuple):
         # we must convert here to allow msg to pass it (a tuple is confused
         # with a outputfunc structure)
         ret = str(ret)
 
     for session in sessions:
         try:
-            caller.msg(ret, session=session, options={"raw": True, "client_raw": client_raw})
+            caller.msg(
+                (ret, {"type": "py_output"}),
+                session=session,
+                options={"raw": True, "client_raw": client_raw, "highlight": True},
+            )
         except TypeError:
-            caller.msg(ret, options={"raw": True, "client_raw": client_raw})
+            caller.msg(
+                (ret, {"type": "py_output"}),
+                options={"raw": True, "client_raw": client_raw, "highlight": True},
+            )
 
 
 def evennia_local_vars(caller):
@@ -562,7 +574,7 @@ class CmdService(COMMAND_DEFAULT_CLASS):
             return
 
         # get all services
-        service_collection = SESSIONS.server.services
+        service_collection = evennia.SESSION_HANDLER.server.services
 
         if not switches or switches[0] == "list":
             # Just display the list of installed services and their
@@ -1032,7 +1044,6 @@ class CmdTasks(COMMAND_DEFAULT_CLASS):
 
         # handle caller's request to manipulate a task(s)
         if self.switches and self.lhs:
-
             # find if the argument is a task id or function name
             action_request = self.switches[0]
             try:
@@ -1042,7 +1053,6 @@ class CmdTasks(COMMAND_DEFAULT_CLASS):
 
             # if the argument is a task id, proccess the action on a single task
             if arg_is_id:
-
                 err_arg_msg = "Switch and task ID are required when manipulating a task."
                 task_comp_msg = "Task completed while processing request."
 
@@ -1107,7 +1117,6 @@ class CmdTasks(COMMAND_DEFAULT_CLASS):
             # the argument is not a task id, process the action on all task deferring the function
             # specified as an argument
             else:
-
                 name_match_found = False
                 arg_func_name = self.lhslist[0].lower()
 

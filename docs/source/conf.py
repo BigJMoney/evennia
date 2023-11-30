@@ -15,13 +15,12 @@ from sphinx.util.osutil import cd
 # -- Project information -----------------------------------------------------
 
 project = "Evennia"
-copyright = "2022, The Evennia developer community"
+copyright = "2023, The Evennia developer community"
 author = "The Evennia developer community"
 
 # The full Evennia version covered by these docs, including alpha/beta/rc tags
 # This will be used for multi-version selection options.
-release = "1.0"
-
+release = "2.x"
 
 # -- General configuration ---------------------------------------------------
 
@@ -54,7 +53,7 @@ html_static_path = ["_static"]
 # which branches to include in multi-versioned docs
 # smv_branch_whitelist = r"^develop$|^v[0-9\.]+?$"
 # smv_branch_whitelist = r"^develop$|^master$|^v1.0$"
-smv_branch_whitelist = r"^develop$|^main$"
+smv_branch_whitelist = r"^main$"
 smv_outputdir_format = "{config.release}"
 # don't make docs for tags
 smv_tag_whitelist = r"^$"
@@ -62,17 +61,22 @@ smv_tag_whitelist = r"^$"
 # used to fill in versioning.html links for versions that are not actually built.
 # These are also read from the deploy.py script. These are also the names of
 # the folders built in the gh-pages evennia branch, under docs/.
-latest_version = "1.0"
-legacy_versions = ["0.9.5"]
+latest_version = "2.x"
+legacy_versions = ["1.3.0", "0.9.5"]
 
 
 def add_legacy_versions_to_html_page_context(app, pagename, templatename, context, doctree):
     # this is read by versioning.html template (sidebar)
+
+    # set this when building legacy docs, to show the 'you are reading an old version' headers
+    current_is_legacy = False
+
     LVersion = namedtuple("legacy_version", ["release", "name", "url"])
     context["legacy_versions"] = [
         LVersion(release=f"{vers}", name=f"v{vers}", url=f"../{vers}/index.html")
         for vers in legacy_versions
     ]
+    context["current_is_legacy"] = current_is_legacy
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -157,10 +161,13 @@ _githubstart = "github:"
 _apistart = "api:"
 _choose_issue = "github:issue"
 _sourcestart = "src:"
+_discussions = "github:discussions"
 # remaps
 _github_code_root = "https://github.com/evennia/evennia/blob/"
 _github_doc_root = "https://github.com/evennia/tree/master/docs/sources/"
 _github_issue_choose = "https://github.com/evennia/evennia/issues/new/choose"
+_github_discussions = "https://github.com/evennia/evennia/discussions"
+
 _ref_regex = re.compile(  # normal reference-links [txt](url)
     r"\[(?P<txt>[\w -\[\]\`\n]+?)\]\((?P<url>.+?)\)", re.I + re.S + re.U + re.M
 )
@@ -176,7 +183,7 @@ def url_resolver(app, docname, source):
     Convert urls by catching special markers.
 
     Supported replacements (used e.g. as [txt](github:...)
-        github:master/<url>  - add path to Evennia github master branch
+        github:main/<url>  - add path to Evennia github master branch
         github:develop/<url> - add path to Evennia github develop branch
         github:issue - add link to the Evennia github issue-create page
         src:foo.bar#Foo - add link to source doc in _modules
@@ -186,7 +193,6 @@ def url_resolver(app, docname, source):
     """
 
     def _url_remap(url):
-
         # determine depth in tree of current document
         docdepth = docname.count("/") + 1
         relative_path = "../".join("" for _ in range(docdepth))
@@ -194,11 +200,13 @@ def url_resolver(app, docname, source):
         if url.endswith(_choose_issue):
             # github:issue shortcut
             return _github_issue_choose
+        elif url.endswith(_discussions):
+            return _github_discussions
         elif _githubstart in url:
             # github:develop/... shortcut
             urlpath = url[url.index(_githubstart) + len(_githubstart) :]
-            if not (urlpath.startswith("develop/") or urlpath.startswith("master")):
-                urlpath = "master/" + urlpath
+            if not (urlpath.startswith("develop/") or urlpath.startswith("main/")):
+                urlpath = "main/" + urlpath
             return _github_code_root + urlpath
         elif _sourcestart in url:
             ind = url.index(_sourcestart)
@@ -289,7 +297,6 @@ def autodoc_post_process_docstring(app, what, name, obj, options, lines):
     Post-process docstring in various ways. Must modify lines-list in-place.
     """
     try:
-
         # clean out ANSI colors
 
         if ansi_clean:

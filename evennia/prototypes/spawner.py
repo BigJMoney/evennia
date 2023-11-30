@@ -151,7 +151,7 @@ from evennia.prototypes.prototypes import (
     value_to_obj_or_any,
 )
 from evennia.utils import logger
-from evennia.utils.utils import is_iter, make_iter
+from evennia.utils.utils import class_from_module, is_iter, make_iter
 
 _CREATE_OBJECT_KWARGS = ("key", "location", "home", "destination")
 _PROTOTYPE_META_NAMES = (
@@ -397,7 +397,6 @@ def prototype_diff(prototype1, prototype2, maxdepth=2, homogenize=False, implici
     _unset = Unset()
 
     def _recursive_diff(old, new, depth=0):
-
         old_type = type(old)
         new_type = type(new)
 
@@ -694,7 +693,6 @@ def batch_update_objects_with_prototype(
 
         try:
             for key, directive in diff.items():
-
                 if key not in new_prototype and not exact:
                     # we don't update the object if the prototype does not actually
                     # contain the key (the diff will report REMOVE but we ignore it
@@ -702,7 +700,6 @@ def batch_update_objects_with_prototype(
                     continue
 
                 if directive in ("UPDATE", "REPLACE"):
-
                     if key in _PROTOTYPE_META_NAMES:
                         # prototype meta keys are not stored on-object
                         continue
@@ -713,7 +710,7 @@ def batch_update_objects_with_prototype(
                     def _init(val, typ):
                         return init_spawn_value(
                             val,
-                            str,
+                            typ,
                             caller=caller,
                             prototype=new_prototype,
                             protfunc_raise_errors=protfunc_raise_errors,
@@ -856,7 +853,6 @@ def batch_create_object(*objparams):
 
     objs = []
     for objparam in objparams:
-
         obj = ObjectDB(**objparam[0])
 
         # setup
@@ -931,7 +927,6 @@ def spawn(*prototypes, caller=None, **kwargs):
 
     objsparams = []
     for prototype in prototypes:
-
         # run validation and homogenization of provided prototypes
         protlib.validate_prototype(
             prototype, None, protparents=custom_protparents, is_prototype_base=True
@@ -979,8 +974,13 @@ def spawn(*prototypes, caller=None, **kwargs):
         val = prot.pop("destination", None)
         create_kwargs["db_destination"] = init_spawn_value(val, value_to_obj, **init_spawn_kwargs)
 
+        # we need the 'true' path to the typeclass (not its alias), so we make sure to load the typeclass
+        # and use its path directly
         val = prot.pop("typeclass", settings.BASE_OBJECT_TYPECLASS)
-        create_kwargs["db_typeclass_path"] = init_spawn_value(val, str, **init_spawn_kwargs)
+        typeclass = class_from_module(
+            init_spawn_value(val, str, **init_spawn_kwargs), settings.TYPECLASS_PATHS
+        )
+        create_kwargs["db_typeclass_path"] = f"{typeclass.__module__}.{typeclass.__name__}"
 
         # extract calls to handlers
         val = prot.pop("permissions", [])
@@ -992,7 +992,7 @@ def spawn(*prototypes, caller=None, **kwargs):
 
         val = prot.pop("tags", [])
         tags = []
-        for (tag, category, *data) in val:
+        for tag, category, *data in val:
             tags.append(
                 (
                     init_spawn_value(tag, str, **init_spawn_kwargs),
@@ -1022,7 +1022,7 @@ def spawn(*prototypes, caller=None, **kwargs):
         # the rest are attribute tuples (attrname, value, category, locks)
         val = make_iter(prot.pop("attrs", []))
         attributes = []
-        for (attrname, value, *rest) in val:
+        for attrname, value, *rest in val:
             attributes.append(
                 (
                     attrname,

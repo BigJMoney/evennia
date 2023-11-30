@@ -9,33 +9,18 @@ evennia/server/server_runner.py).
 """
 import os
 import sys
-import time
-import traceback
 
 import django
-from twisted.application import internet, service
-from twisted.internet import defer, reactor
-from twisted.internet.task import LoopingCall
 from twisted.logger import globalLogPublisher
-from twisted.web import static
 
 django.setup()
-
-import importlib
 
 import evennia
 
 evennia._init()
 
 from django.conf import settings
-from django.db import connection
-from django.db.utils import OperationalError
-from django.utils.translation import gettext as _
 
-from evennia.accounts.models import AccountDB
-from evennia.scripts.models import ScriptDB
-from evennia.server.models import ServerConfig
-from evennia.server.sessionhandler import SESSIONS
 from evennia.utils import logger
 from evennia.utils.utils import get_evennia_version, make_iter, mod_import
 
@@ -684,8 +669,9 @@ except OperationalError:
 
 # twistd requires us to define the variable 'application' so it knows
 # what to execute from.
-application = service.Application("Evennia")
-
+# The guts of the application are in the service.py file,
+# which is instantiated and attached to application in evennia._init()
+application = evennia.TWISTED_APPLICATION
 
 if "--nodaemon" not in sys.argv and "test" not in sys.argv:
     # activate logging for interactive/testing mode
@@ -696,105 +682,3 @@ if "--nodaemon" not in sys.argv and "test" not in sys.argv:
         max_size=settings.SERVER_LOG_MAX_SIZE,
     )
     globalLogPublisher.addObserver(logger.GetServerLogObserver()(logfile))
-
-
-# The main evennia server program. This sets up the database
-# and is where we store all the other services.
-EVENNIA = Evennia(application)
-
-if AMP_ENABLED:
-
-    # The AMP protocol handles the communication between
-    # the portal and the mud server. Only reason to ever deactivate
-    # it would be during testing and debugging.
-
-    ifacestr = ""
-    if AMP_INTERFACE != "127.0.0.1":
-        ifacestr = "-%s" % AMP_INTERFACE
-
-    INFO_DICT["amp"] = "amp %s: %s" % (ifacestr, AMP_PORT)
-
-    from evennia.server import amp_client
-
-    factory = amp_client.AMPClientFactory(EVENNIA)
-    amp_service = internet.TCPClient(AMP_HOST, AMP_PORT, factory)
-    amp_service.setName("ServerAMPClient")
-    EVENNIA.services.addService(amp_service)
-
-if WEBSERVER_ENABLED:
-
-    # Start a django-compatible webserver.
-
-    from evennia.server.webserver import (
-        DjangoWebRoot,
-        LockableThreadPool,
-        PrivateStaticRoot,
-        Website,
-        WSGIWebServer,
-    )
-
-    # start a thread pool and define the root url (/) as a wsgi resource
-    # recognized by Django
-    threads = LockableThreadPool(
-        minthreads=max(1, settings.WEBSERVER_THREADPOOL_LIMITS[0]),
-        maxthreads=max(1, settings.WEBSERVER_THREADPOOL_LIMITS[1]),
-    )
-
-    web_root = DjangoWebRoot(threads)
-    # point our media resources to url /media
-    web_root.putChild(b"media", PrivateStaticRoot(settings.MEDIA_ROOT))
-    # point our static resources to url /static
-    web_root.putChild(b"static", PrivateStaticRoot(settings.STATIC_ROOT))
-    EVENNIA.web_root = web_root
-
-    if WEB_PLUGINS_MODULE:
-        # custom overloads
-        web_root = WEB_PLUGINS_MODULE.at_webserver_root_creation(web_root)
-
-    web_site = Website(web_root, logPath=settings.HTTP_LOG_FILE)
-    web_site.is_portal = False
-
-    INFO_DICT["webserver"] = ""
-    for proxyport, serverport in WEBSERVER_PORTS:
-        # create the webserver (we only need the port for this)
-        webserver = WSGIWebServer(threads, serverport, web_site, interface="127.0.0.1")
-        webserver.setName("EvenniaWebServer%s" % serverport)
-        EVENNIA.services.addService(webserver)
-
-        INFO_DICT["webserver"] += "webserver: %s" % serverport
-
-ENABLED = []
-if IRC_ENABLED:
-    # IRC channel connections
-    ENABLED.append("irc")
-
-if RSS_ENABLED:
-    # RSS feed channel connections
-    ENABLED.append("rss")
-
-if GRAPEVINE_ENABLED:
-    # Grapevine channel connections
-    ENABLED.append("grapevine")
-
-if GAME_INDEX_ENABLED:
-    from evennia.server.game_index_client.service import EvenniaGameIndexService
-
-    egi_service = EvenniaGameIndexService()
-    EVENNIA.services.addService(egi_service)
-
-if ENABLED:
-    INFO_DICT["irc_rss"] = ", ".join(ENABLED) + " enabled."
-
-for plugin_module in SERVER_SERVICES_PLUGIN_MODULES:
-    # external plugin protocols - load here
-    plugin_module = mod_import(plugin_module)
-    if plugin_module:
-        plugin_module.start_plugin_services(EVENNIA)
-    else:
-        print(f"Could not load plugin module {plugin_module}")
-
-# clear server startup mode
-try:
-    ServerConfig.objects.conf("server_starting_mode", delete=True)
-except OperationalError:
-    print("Server server_starting_mode couldn't unset - db not set up.")

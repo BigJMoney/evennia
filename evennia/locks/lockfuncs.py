@@ -18,6 +18,7 @@ from ast import literal_eval
 
 from django.conf import settings
 
+import evennia
 from evennia.utils import utils
 
 _PERMISSION_HIERARCHY = [pe.lower() for pe in settings.PERMISSION_HIERARCHY]
@@ -127,7 +128,7 @@ def perm(accessing_obj, accessed_obj, *args, **kwargs):
     hpos_target = None
     if permission in _PERMISSION_HIERARCHY:
         hpos_target = _PERMISSION_HIERARCHY.index(permission)
-    if permission.endswith("s") and permission[:-1] in _PERMISSION_HIERARCHY:
+    elif permission.endswith("s") and permission[:-1] in _PERMISSION_HIERARCHY:
         hpos_target = _PERMISSION_HIERARCHY.index(permission[:-1])
     if hpos_target is not None:
         # hieratchy match
@@ -142,7 +143,7 @@ def perm(accessing_obj, accessed_obj, *args, **kwargs):
                 for hpos, hperm in enumerate(_PERMISSION_HIERARCHY)
                 if hperm in perms_account_single
             ]
-            hpos_account = hpos_account and hpos_account[-1] or -1
+            hpos_account = hpos_account[-1] if hpos_account else -1
 
         if not account or is_quell:
             # only get the object-level perms if there is no account or quelling
@@ -152,7 +153,7 @@ def perm(accessing_obj, accessed_obj, *args, **kwargs):
                 for hpos, hperm in enumerate(_PERMISSION_HIERARCHY)
                 if hperm in perms_object_single
             ]
-            hpos_object = hpos_object and hpos_object[-1] or -1
+            hpos_object = hpos_object[-1] if hpos_object else -1
 
         if account and is_quell:
             # quell mode: use smallest perm from account and object
@@ -511,18 +512,24 @@ def is_ooc(accessing_obj, accessed_obj, *args, **kwargs):
         is_ooc()
 
     This is normally used to lock a Command, so it can be used
-    only when out of character.
+    only when out of character. When not logged in at all, this
+    function will still return True.
     """
     obj = accessed_obj.obj if hasattr(accessed_obj, "obj") else accessed_obj
-    account = obj.account if hasattr(obj, "account") else obj
+    account = obj.account if utils.inherits_from(obj, evennia.DefaultObject) else obj
     if not account:
         return True
     try:
         session = accessed_obj.session
     except AttributeError:
-        session = account.sessions.get()[0]  # note-this doesn't work well
+        # note-this doesn't work well
         # for high multisession mode. We may need
         # to change to sessiondb to resolve this
+        sessions = session = account.sessions.get()
+        session = sessions[0] if sessions else None
+    if not session:
+        # this suggests we are not even logged in; treat as ooc.
+        return True
     try:
         return not account.get_puppet(session)
     except TypeError:
@@ -651,7 +658,7 @@ def has_account(accessing_obj, accessed_obj, *args, **kwargs):
     This is a useful lock for traverse-locking Exits to restrain NPC
     mobiles from moving outside their areas.
     """
-    return hasattr(accessing_obj, "has_account") and accessing_obj.has_account
+    return utils.inherits_from(accessing_obj, evennia.DefaultObject) and accessing_obj.has_account
 
 
 def serversetting(accessing_obj, accessed_obj, *args, **kwargs):

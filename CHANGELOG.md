@@ -1,11 +1,247 @@
 # Changelog
 
-### Evennia 1.0
+## Main branch
+
+- [Feature][pull3313] (Backwards incompatible): `OptionHandler.set` now returns
+  `BaseOption` rather than its `.value`. Instead access `.value` or `.display()`
+  on this return for more control. (Volund)
+- [Feature][pull3278]: (Backwards incompatible): Refactor home page into multiple sub-parts for easier
+  overriding and composition (johnnyvoruz)
+- [Feature][pull3180]: (Can be backwards incompatible): Make build commands easier to override, with new utility
+  hooks (Volund)
+- [Feature][issue3273]: Allow passing `text_kwargs` kwarg to `EvMore.msg` in order to expand
+  the outputfunc used for every evmore page.
+- [Feature][pull3286]: Allow Discord bot to change user's nickname and assign
+  roles for a user on a given server (holl0wstar).
+- [Feature][pull3301]: Make EvenniaAdminSite include custom models better; adds
+  `DJANGO_ADMIN_APP_ORDER` and `DJANGO_ADMIN_APP_EXCLUDE` as modifable
+  settings.(Volund)
+- [Feature][pull3179]: Handling of the `.db._playable_characters` helper
+  methods. Also adds events hooks to modify effects when this list changes (Volund)
+  avoiding race conditions until server starts (Volund)
+- [Feature][pull3281]: Add `$your()` and `$Your()` for actor stance emoting (Volund)
+- [Feature][pull3177]: Add `Account.get_character_slots()`,
+  `.get_available_character_slots()`, `.check_available_slots` and
+  `at_post_create_character` methods to allow better customization of character creation (Volund)
+- [Feature][pull3319]: Refactor/cleanup of Evennia server/portal startup files
+  into services for easier overriding (Volund)
+- [Feature][issue3307]: Add support for Attribute-categories when using the monitorhandler
+  with input funcs to monitor Attribute changes.
+- [Fix] (Backwards incompatible): Change `settings._TEST_ENVIRONMENT` to
+  `settings.TEST_ENVIRONMENT` to address issues during refactored startup sequence.
+- [Fix][pull3197]: Make sure Global scripts only start in one place,
+- [Fix][pull3324]: Make account-post-login-fail signal fire properly. Add
+  `CUSTOM_SIGNAL` for adding one's own signals (Volund)
+- [Fix][pull3267]: Missing recache step in ObjectSessionHandler (InspectorCaracal)
+- [Fix][pull3270]: Evennia is its own MSSP family now, so we should return that
+  instead of 'Custom' (InspectorCaracal)
+- [Fix][pull3274]: Traceback when creating objects with initial nattributes
+  (InspectorCaracal)
+- [Fix][issue3272]: Make sure `ScriptHandler.add` does not fail if passed an
+  instantiated script. (Volund)
+- [Fix][pull3338]: Resolve if/elif bug in XYZGrid contrib launch command
+  (jaborsh)
+- [fix][issue3331]: Made XYZGrid query zcoords in a case-insensitive manner.
+- [Fix][pull3322]: Fix `BaseOption.display` to always return a string.
+- Docs: Lots of Typo fixes (iLPdev, InspectorCaracal, jaborsh)
+- Beginner tutorial: Cleanup and starting earlier with explaining how to add to
+  the default cmdsets.
+
+[pull3267]: https://github.com/evennia/evennia/pull/3267
+[pull3270]: https://github.com/evennia/evennia/pull/3270
+[pull3274]: https://github.com/evennia/evennia/pull/3274
+[pull3278]: https://github.com/evennia/evennia/pull/3278
+[pull3286]: https://github.com/evennia/evennia/pull/3286
+[pull3301]: https://github.com/evennia/evennia/pull/3301
+[pull3179]: https://github.com/evennia/evennia/pull/3179
+[pull3197]: https://github.com/evennia/evennia/pull/3197
+[pull3313]: https://github.com/evennia/evennia/pull/3313
+[pull3281]: https://github.com/evennia/evennia/pull/3281
+[pull3322]: https://github.com/evennia/evennia/pull/3322
+[pull3177]: https://github.com/evennia/evennia/pull/3177
+[pull3180]: https://github.com/evennia/evennia/pull/3180
+[pull3319]: https://github.com/evennia/evennia/pull/3319
+[pull3324]: https://github.com/evennia/evennia/pull/3324
+[pull3338]: https://github.com/evennia/evennia/pull/3338
+[issue3272]: https://github.com/evennia/evennia/issues/3272
+[issue3273]: https://github.com/evennia/evennia/issues/3273
+[issue3308]: https://github.com/evennia/evennia/issues/3307
+[issue3331]: https://github.com/evennia/evennia/issues/3331
+
+## Evennia 2.3.0
+
+Sept 3, 2023
+
+- Feat: EvMenu tooltips for multiple help categories in a node (Seannio).
+- Feat: Default `examine` command now also shows an account's `last_login`
+  (michaelfaith84)
+- Fix: Portal would accidentally start global scripts. (blongden)
+- Fix: Traceback when printing CounterTrait contrib objects. (InspectorCaracal)
+- Fix: Typo in evadventure twitch combat's call of `create_combathandler`.
+- Docs: Fix bug in evadventure equipmenthandler blocking creation of npcs.
+  in-game.
+- Docs: Plenty of typo fixes (iLPDev, moldikins, others)
+
+## Evennia 2.2.0
+
+Aug 6, 2023
+
+- Contrib: Large-language-model (LLM) AI integration; allows NPCs to talk using
+  responses from an LLM server.
+- Fix: Make sure `at_server_reload` is called also on non-repeating Scripts.
+- Fix: Webclient was not giving a proper error when sending an unknown outputfunc to it.
+- Fix: Make `py` command always send strings unless `client_raw` flag is set.
+- Fix: `Script.start` with an integer `start_delay` caused a traceback.
+- Fix: Removing "Guest" from the permission-hierarchy setting messed up access.
+- Docs: Remove doc pages for Travis/TeamCity CI tools, they were both very much
+  out of date, and Travis is not free for OSS anymore.
+- Docs: A lot fixes of typos and bugs in tutorials.
+
+## Evennia 2.1.0
+
+July 14, 2023
+
+- Fix: The new `ExtendedRoom` contrib has a bug when dug with no descriptions.
+- Fix: Clean up `get_sides` function in evadventure tutorial to return also
+  the calling combatant with its `allies` return, to make it easier to reason around.
+- Feature: Add `SSL_CERTIFICATE_ISSUERS` setting for customizing Telnet+SSL.
+- Contrib: Refactored `dice.roll` contrib function to use `safe_eval`. Can now
+  optionally be used as `dice.roll("2d10 + 4 > 10")`. Old way works too.
+- Lots of doc updates.
+
+## Evennia 2.0.1
+
+June 17, 2023
+
+- Fix: A look-bug in the `ExtendedRoom` contrib (InspectorCaracal)
+
+## Evennia 2.0.0
+
+June 10, 2023
+
+- **Possible backwards incompatibility**: Updated contrib `ExtendedRoom` now
+  supports arbitrary room-states, state-based descriptions, embedded funcparser
+  tags, details and random messages.  While this feature is made to be as
+  backwards-compatible as possible, so many people depend on this contrib class
+  that we are updating the major Evennia version to indicate the big changes.
+- New Contrib: `Container` typeclass with new commands for storing and retrieving
+  things inside them (InspectorCaracal)
+- Feature: Add `TagCategoryProperty` for setting categories with multiple tags
+  as properties directly on objects. Complements `TagProperty`.
+- Feature: Attribute-support for saving/loading `deques` with `maxlen=` set.
+- Feature: Refactor to provide `evennia.SESSION_HANDLER` for easier overloading
+  and less risks of circular import problems (Volund)
+- Fix: Allow webclient's goldenlayout UI (default) to understand `msg`
+  `cls` kwarg for customizing the CSS class for every resulting `div` (friarzen)
+- Fix: The `AttributeHandler.all()` now actually accepts `category=` as
+  keyword arg, like our docs already claimed it should (Volund)
+- Fix: `TickerHandler` store key updating was refactored, fixing an issue with
+  updating intervals (InspectorCaracal)
+- Docs: Removed warning about Python3.11 on Windows; upstream Twistd now
+  supports 3.11 on Windows.
+- Docs: New Beginner-Tutorial lessons for NPCs, Base-Combat Twitch-Combat and
+  Turnbased-combat (note that the Beginner tutorial is still WIP).
+- Stabilize how to make the major update in the docs.
+- Fix: A lot of other minor bug fixes.
+
+
+## Evennia 1.3.0
+
+Apr 29, 2023
+
+- Feature: Better ANSI color fallbacks (InspectorCaracal).
+- Feature: Add support for saving `deque` with `maxlen` to Attributes (before
+  `maxlen` was ignored).
+- Fix: The username validator did not display errors correctly in web
+  registration form.
+- Fix: Components contrib had issues with inherited typeclasses (ChrisLR)
+- Fix: f-string fix in clothing contrib (aMiss-aWry)
+- Fix: Have `EvenniaTestCase` properly flush idmapper cache (bradleymarques)
+- Tools: More unit tests for scripts (Storsorken)
+- Docs: Made separate doc pages for Exits, Characters and Rooms. Expanded on how
+  to change the description of an in-game object with templating.
+- Docs: A multitude of doc issues and typos fixed.
+
+## Evennia 1.2.1
+
+Feb 26, 2023
+
+- Bug fix: Make sure command parser gives precedence to longer cmd-aliases. So
+  if sending `smile at` and the cmd `smile` has alias `smile at`, the match is
+  ordered so the result is never interpreted as `smile` with an argument `at`.
+- Bug fix: || (escaped color tags) were parsed too early in help entries,
+  leading to colors when wanting a | separator
+- Bug fix: Make sure spawned objects get `typeclass_path` pointing to the true
+  location rather than alias (in line with `create_object`).
+- Bug fix: Building Menu contrib menu no using Replace over Union mergetype to
+  avoid clashing with in-game commands while building
+- Feature: RPSystem contrib `sdesc` command can now view/delete your sdesc.
+- Bug fix: Change so `script obj = [scriptname|id]` is required to manipulate
+  scripts on objects; `script scriptname|id` only works on global scripts.
+- Doc: Add warning about `Django-wiki` (in wiki tutorial) only supporting
+  Django <4.0.
+- Doc: Expanded `XYZGrid` docstring to clarify `MapLink` class will not itself
+  spawn anything, children must define their prototypes explicitly.
+- Doc: Explained why `AttributeProperty.at_get/set` will not be called if
+  accessing the Attribute from the `AttributeHandler` (bypassing the property)
+- Bug fix: Evtable options showed spurious empty lines if set without desc
+- Usage fix: The `teleport:` and `teleport_here:` locks where checked in
+  `CmdTeleport`, but not actually set on any entities. These locks are now
+  set with defaults on all objects,characters,rooms and exits.
+
+## Evennia 1.2.0
+
+Feb 25, 2023
+
+- Bug fix: `TagHandler.get` did not consistently cast to string (aMiss-aWry)
+- Bug fix: Channels hard to manage if given in different case (aMiss-aWry)
+- Feature: `logger.delete_log` function for deleting custom logs from inside the
+  server (aMiss-aWry)
+- Doc: Nginx setup (InspectorCaracal)
+- Feature: Add `fly/dive` commands to `XYZGrid` contrib to showcase treating its
+  Z-axis as a full 3D grid. Also fixed minor bug in `XYZGrid` contrib when using
+  a Z axis named using an integer rather than a string.
+- Bug fix: `$an()` inlinefunc didn't understand to use 'an' words starting with a
+  capital vowel
+- Bug fix: Another case of the 'duplicate Discord bot connections' bug
+  (InspectorCaracal)
+- Fix: Make XYZGrid contrib's MapParserErrors more succinct
+
+## Evennia 1.1.1
+
+Jan 15, 2023
+
+- Bug fix: Better handler malformed alias-regex given to nickhandler. A
+  regex-relevant character in a channel alias could cause server to not restart.
+- Feature: Add `attr` keyword to `create_channel`. This allows setting
+  attributes on channels at creation, also from `DEFAULT_CHANNELS` definitions.
+
+## Evennia 1.1.0
+Jan 7, 2023
+
+- Stop new registrations with `settings.NEW_ACCOUNT_REGISTRATION_ENABLED`
+  (inspectorcaracal)
+- Bug fixes.
+
+## Evennia 1.0.2
+Dec 21, 2022
+
+- Bug fix release. Fix more issues with discord bot reconnecting. Some doc
+updates.
+
+## Evennia 1.0.1
+Dec 7, 2022
+
+- Bug fix release. Main issue was reconnect bug for discord bot.
+
+## Evennia 1.0.0
 
 2019-2022
 
 _Changed to using `main` branch to follow github standard. Old `master` branch remains
 for now but will not be used anymore, so as to not break installs during transition._
+
+Also changing to using semantic versioning with this version.
 
 Increase requirements: Django 4.1+, Twisted 22.10+ Python 3.10, 3.11.  PostgreSQL 11+.
 

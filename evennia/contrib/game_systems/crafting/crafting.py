@@ -318,7 +318,6 @@ class CraftingRecipeBase:
         """
         craft_result = None
         if self.allow_craft:
-
             # override/extend craft_kwargs from initialization.
             craft_kwargs = copy(self.craft_kwargs)
             craft_kwargs.update(kwargs)
@@ -386,8 +385,9 @@ class CraftingRecipe(CraftingRecipeBase):
                 {"key": "Bag of flour",
                  "typeclass": "typeclasses.food.Flour",
                  "desc": "A small bag of flour."
-                 "tags": [("flour", "crafting_material"),
+                 "tags": [("flour", "crafting_material")],
                 }
+            ]
 
         class BreadRecipe(CraftRecipe):
             name = "bread"
@@ -397,6 +397,7 @@ class CraftingRecipe(CraftingRecipeBase):
                 {"key": "bread",
                  "desc": "A tasty bread."
                 }
+            ]
 
 
     ## Properties on the class level:
@@ -602,8 +603,12 @@ class CraftingRecipe(CraftingRecipeBase):
         else:
             self.tool_names = self.tool_tags
 
+        assert isinstance(
+            self.output_prototypes, (list, tuple)
+        ), "Crafting {self.__class__}.output_prototypes must be a list or tuple."
+
         if self.output_names:
-            assert len(self.consumable_names) == len(self.consumable_tags), (
+            assert len(self.output_names) == len(self.output_prototypes), (
                 f"Crafting {self.__class__}.output_names list must "
                 "have the same length as .output_prototypes."
             )
@@ -615,16 +620,11 @@ class CraftingRecipe(CraftingRecipeBase):
                 for prot in self.output_prototypes
             ]
 
-        assert isinstance(
-            self.output_prototypes, (list, tuple)
-        ), "Crafting {self.__class__}.output_prototypes must be a list or tuple."
-
         # don't allow reuse if we have consumables. If only tools we can reuse
         # over and over since nothing changes.
         self.allow_reuse = not bool(self.consumable_tags)
 
     def _format_message(self, message, **kwargs):
-
         missing = iter_to_str(kwargs.get("missing", ""))
         excess = iter_to_str(kwargs.get("excess", ""))
         involved_tools = iter_to_str(kwargs.get("tools", ""))
@@ -700,7 +700,6 @@ class CraftingRecipe(CraftingRecipeBase):
 
         tools = []
         for itag, tag in enumerate(cls.tool_tags):
-
             tools.append(
                 create_object(
                     key=tool_key or (cls.tool_names[itag] if cls.tool_names else tag.capitalize()),

@@ -8,9 +8,9 @@ from codecs import lookup as codecs_lookup
 
 from django.conf import settings
 
+import evennia
 from evennia.commands.cmdhandler import CMD_LOGINSTART
 from evennia.comms.models import ChannelDB
-from evennia.server.sessionhandler import SESSIONS
 from evennia.utils import class_from_module, create, gametime, logger, utils
 
 COMMAND_DEFAULT_CLASS = utils.class_from_module(settings.COMMAND_DEFAULT_CLASS)
@@ -171,6 +171,15 @@ class CmdUnconnectedCreate(COMMAND_DEFAULT_CLASS):
     aliases = ["cre", "cr"]
     locks = "cmd:all()"
     arg_regex = r"\s.*?|$"
+
+    def at_pre_cmd(self):
+        """Verify that account creation is enabled."""
+        if not settings.NEW_ACCOUNT_REGISTRATION_ENABLED:
+            # truthy return cancels the command
+            self.msg("Registration is currently disabled.")
+            return True
+
+        return super().at_pre_cmd()
 
     def func(self):
         """Do checks and create account"""
@@ -453,68 +462,7 @@ class CmdUnconnectedInfo(COMMAND_DEFAULT_CLASS):
             % (
                 settings.SERVERNAME,
                 datetime.datetime.fromtimestamp(gametime.SERVER_START_TIME).ctime(),
-                SESSIONS.account_count(),
+                evennia.SESSION_HANDLER.account_count(),
                 utils.get_evennia_version(),
             )
         )
-
-
-def _create_account(session, accountname, password, permissions, typeclass=None, email=None):
-    """
-    Helper function, creates an account of the specified typeclass.
-    """
-    try:
-        new_account = create.create_account(
-            accountname, email, password, permissions=permissions, typeclass=typeclass
-        )
-
-    except Exception as e:
-        session.msg(
-            "There was an error creating the Account:\n%s\n If this problem persists, contact an"
-            " admin." % e
-        )
-        logger.log_trace()
-        return False
-
-    # This needs to be set so the engine knows this account is
-    # logging in for the first time. (so it knows to call the right
-    # hooks during login later)
-    new_account.db.FIRST_LOGIN = True
-
-    # join the new account to the public channel
-    pchannel = ChannelDB.objects.get_channel(settings.DEFAULT_CHANNELS[0]["key"])
-    if not pchannel or not pchannel.connect(new_account):
-        string = "New account '%s' could not connect to public channel!" % new_account.key
-        logger.log_err(string)
-    return new_account
-
-
-def _create_character(session, new_account, typeclass, home, permissions):
-    """
-    Helper function, creates a character based on an account's name.
-    This is meant for Guest and AUTO_CREATRE_CHARACTER_WITH_ACCOUNT=True situations.
-    """
-    try:
-        new_character = create.create_object(
-            typeclass, key=new_account.key, home=home, permissions=permissions
-        )
-        # set playable character list
-        new_account.db._playable_characters.append(new_character)
-
-        # allow only the character itself and the account to puppet this character (and Developers).
-        new_character.locks.add(
-            "puppet:id(%i) or pid(%i) or perm(Developer) or pperm(Developer)"
-            % (new_character.id, new_account.id)
-        )
-
-        # If no description is set, set a default description
-        if not new_character.db.desc:
-            new_character.db.desc = "This is a character."
-        # We need to set this to have ic auto-connect to this character
-        new_account.db._last_puppet = new_character
-    except Exception as e:
-        session.msg(
-            "There was an error creating the Character:\n%s\n If this problem persists, contact an"
-            " admin." % e
-        )
-        logger.log_trace()

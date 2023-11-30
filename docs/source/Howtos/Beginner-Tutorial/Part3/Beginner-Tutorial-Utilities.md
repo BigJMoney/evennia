@@ -5,6 +5,11 @@ utilities that will be useful later. We will also learn how to write _tests_.
 
 ## Folder structure
 
+```{sidebar} This layout is for the tutorial!
+We make the `evadventure` folder stand-alone for the sake of the tutorial only. Leaving the code isolated makes it clear what we changed - and for you to grab what you want later. It also makes it easier to refer to matching code in `evennia/contrib/tutorials/evadventure`. 
+
+For your own game you are encouraged to modify your game dir in-place instead (such as add to `commands/commands.py` and to modify the `typeclasses/` modules directly). Except for the `server/` folder, you are infact free to structure your game dir code pretty much as you like.
+```
 Create a new folder under your `mygame` folder, named `evadventure`. Inside it, create 
 another folder `tests/` and make sure to put empty `__init__.py` files in both. This turns both 
 folders into packages Python understands to import from.
@@ -57,8 +62,7 @@ A full example of the enum module is found in
 ```
 Create a new file `mygame/evadventure/enums.py`.
 
-An [enum](https://docs.python.org/3/library/enum.html) (enumeration) is a way to establish constants
-in Python. Best is to show an example: 
+An [enum](https://docs.python.org/3/library/enum.html) (enumeration) is a way to establish constants in Python. Best is to show an example: 
 
 ```python 
 # in a file mygame/evadventure/enums.py
@@ -83,23 +87,15 @@ Ability.STR.value  # this is the string "strength"
 
 ```
 
-Having enums is recommended practice. With them set up, it means we can make sure to refer to the 
-same thing every time. Having all enums in one place also means you have a good overview of the 
-constants you are dealing with.
+Having enums is recommended practice. With them set up, it means we can make sure to refer to the  same thing every time. Having all enums in one place also means you have a good overview of the  constants you are dealing with.
 
-The alternative would be to for example pass around a string `"constitution"`. If you mis-spell 
-this (`"consitution"`), you would not necessarily know it right away - the error would happen later 
-when the string is not recognized. If you make a typo getting `Ability.COM` instead of `Ability.CON`, 
-Python will immediately raise an error since this enum is not recognized.
+The alternative would be to for example pass around a string `"constitution"`. If you mis-spell  this (`"consitution"`), you would not necessarily know it right away - the error would happen later  when the string is not recognized. If you make a typo getting `Ability.COM` instead of `Ability.CON`,  Python will immediately raise an error since this enum is not recognized.
 
 With enums you can also do nice direct comparisons like `if ability is Ability.WIS: <do stuff>`.
 
-Note that the `Ability.STR` enum does not have the actual _value_ of e.g. your Strength. 
-It's just a fixed label for the Strength ability.
+Note that the `Ability.STR` enum does not have the actual _value_ of e.g. your Strength.  It's just a fixed label for the Strength ability.
 
-Here is the `enum.py` module needed for _Knave_. It covers the basic aspects of 
-rule systems we need to track (check out the _Knave_ rules. If you use another rule system you'll 
-likely gradually expand on your enums as you figure out what you'll need). 
+Here is the `enum.py` module needed for _Knave_. It covers the basic aspects of  rule systems we need to track (check out the _Knave_ rules. If you use another rule system you'll  likely gradually expand on your enums as you figure out what you'll need). 
 
 ```python 
 # mygame/evadventure/enums.py
@@ -126,11 +122,24 @@ class Ability(Enum):
     ALLEGIANCE_HOSTILE = "hostile"
     ALLEGIANCE_NEUTRAL = "neutral"
     ALLEGIANCE_FRIENDLY = "friendly"
-    
+
+
+ABILITY_REVERSE_MAP =  {
+    "str": Ability.STR, 
+    "dex": Ability.DEX,
+    "con": Ability.CON,
+    "int": Ability.INT,
+    "wis": Ability.WIS,
+    "cha": Ability.CHA 
+}
 
 ```
 
 Here the `Ability` class holds basic properties of a character sheet. 
+
+The `ABILITY_REVERSE_MAP` is a convenient map to go the other way - if you in some command were to enter the string 'cha', we could use this mapping to directly convert your input to the correct `Ability`:
+
+    ability = ABILITY_REVERSE_MAP.get(your_input)
 
 
 ## Utility module
@@ -142,8 +151,7 @@ An example of the utility module is found in
 [evennia/contrib/tutorials/evadventure/utils.py](../../../api/evennia.contrib.tutorials.evadventure.utils.md)
 ```
 
-This is for general functions we may need from all over. In this case we only picture one utility,
-a function that produces a pretty display of any object we pass to it.
+This is for general functions we may need from all over. In this case we only picture one utility, a function that produces a pretty display of any object we pass to it.
 
 This is an example of the string we want to see:
 
@@ -172,7 +180,7 @@ Value: ~|y{value}|n coins{carried}
 {desc}
 
 Slots: |w{size}|n, Used from: |w{use_slot_name}|n
-Quality: |w{quality}|n, Uses: |wuses|n
+Quality: |w{quality}|n, Uses: |w{uses}|n
 Attacks using |w{attack_type_name}|n against |w{defense_type_name}|n
 Damage roll: |w{damage_roll}|n
 """.strip()
@@ -197,53 +205,37 @@ def get_obj_stats(obj, owner=None):
         desc=obj.db.desc, 
         size=1,
         quality=3,
-        uses="infinite"
+        uses="infinite",
         use_slot_name="backpack",
-        attack_type_name="strength"
-        defense_type_name="armor"
+        attack_type_name="strength",
+        defense_type_name="armor",
         damage_roll="1d6"
     )
 ```
-Here we set up the string template with place holders for where every piece of info should go. 
-Study this string so you understand what it does. The `|c`, `|y`, `|w` and `|n` markers are 
-[Evennia color markup](../../../Concepts/Colors.md) for making the text cyan, yellow, white and neutral-color respectively.
+Here we set up the string template with place holders for where every piece of info should go.  Study this string so you understand what it does. The `|c`, `|y`, `|w` and `|n` markers are  [Evennia color markup](../../../Concepts/Colors.md) for making the text cyan, yellow, white and neutral-color respectively.
 
-We can guess some things, such that `obj.key` is the name of the object, and that `obj.db.desc` will 
-hold its description (this is how it is in default Evennia).
+We can guess some things, such that `obj.key` is the name of the object, and that `obj.db.desc` will  hold its description (this is how it is in default Evennia).
 
-But so far we have not established how to get any of the other properties like `size` or `attack_type`.
-So we just set them to dummy values. We'll need to get back to this when we have more code in place!
+But so far we have not established how to get any of the other properties like `size` or `attack_type`. So we just set them to dummy values. We'll need to get back to this when we have more code in place!
 
 ## Testing 
 
-```{important}
-It's useful for any game dev to know how to effectively test their code. So we'll try to include a 
-*Testing* section at the end of each of the implementation lessons to follow. Writing tests for your code 
-is optional but highly recommended; it can feel a little cumbersome at first, but you'll thank yourself later.
-```
-
 > create a new module `mygame/evadventure/tests/test_utils.py`
 
-How do you know if you made a typo in the code above? You could _manually_ test it by reloading your 
-Evennia server and do the following from in-game: 
+How do you know if you made a typo in the code above? You could _manually_ test it by reloading your  Evennia server and do the following from in-game: 
 
     py from evadventure.utils import get_obj_stats;print(get_obj_stats(self))
 
-You should get back a nice string about yourself! If that works, great! But you'll need to remember
-doing that test when you change this code later. 
+You should get back a nice string about yourself! If that works, great! But you'll need to remember doing that test when you change this code later. 
 
 ```{sidebar}
-In [evennia/contrib/tutorials/evadventure/tests/test_utils.py](evennia.contrib.tutorials.
-evadventure.tests.test_utils)
-is an example of the testing module. To dive deeper into unit testing in Evennia, see the 
-[Unit testing](../../../Coding/Unit-Testing.md) documentation.
+In [evennia/contrib/tutorials/evadventure/tests/test_utils.py](evennia.contrib.tutorials.evadventure.tests.test_utils)
+is an example of the testing module. To dive deeper into unit testing in Evennia, see the [Unit testing](../../../Coding/Unit-Testing.md) documentation.
 ```
 
-A _unit test_ allows you to set up automated testing of code. Once you've written your test you 
-can run it over and over and make sure later changes to your code didn't break things. 
+A _unit test_ allows you to set up automated testing of code. Once you've written your test you  can run it over and over and make sure later changes to your code didn't break things. 
 
-In this particular case, we _expect_ to later have to update the test when `get_obj_stats` becomes more 
-complete and returns more reasonable data.
+In this particular case, we _expect_ to later have to update the test when `get_obj_stats` becomes more  complete and returns more reasonable data.
 
 Evennia comes with extensive functionality to help you test your code. Here's a module for 
 testing `get_obj_stats`.
@@ -270,7 +262,7 @@ class TestUtils(BaseEvenniaTest):
             result, 
             """ 
 |ctestobj|n
-Value: ~|y10|n coins
+Value: ~|y10|n coins[not carried]
 
 A test object
 
@@ -283,40 +275,37 @@ Damage roll: |w1d6|n
 
 ```
 
-What happens here is that we create a new test-class `TestUtils` that inherits from `BaseEvenniaTest`. 
-This inheritance is what makes this a testing class.
+What happens here is that we create a new test-class `TestUtils` that inherits from `BaseEvenniaTest`.  This inheritance is what makes this a testing class.
 
-We can have any number of methods on this class. To have a method recognized as one containing 
-code to test, its name _must_ start with `test_`. We have one - `test_get_obj_stats`. 
 
-In this method we create a dummy `obj` and gives it a `key` "testobj". Note how we add the 
-`desc` [Attribute](../../../Components/Attributes.md) directly in the `create_object` call by specifying the attribute as a 
-tuple `(name, value)`!  
+```{important}
+It's useful for any game dev to know how to effectively test their code. So we'll try to include a *Testing* section at the end of each of the implementation lessons to follow. Writing tests for your code is optional but highly recommended. It can feel a little cumbersome or time-consuming at first ... but you'll thank yourself later.
+```
 
-We then get the result of passing this dummy-object through `get_obj_stats` we imported earlier. 
+We can have any number of methods on this class. To have a method recognized as one containing  code to test, its name _must_ start with `test_`. We have one - `test_get_obj_stats`. 
 
-The `assertEqual` method is available on all testing classes and checks that the `result` is equal 
-to the string we specify. If they are the same, the test _passes_, otherwise it _fails_ and we 
-need to investigate what went wrong.
+In this method we create a dummy `obj` and gives it a `key` "testobj". Note how we add the  `desc` [Attribute](../../../Components/Attributes.md) directly in the `create_object` call by specifying the attribute as a  tuple `(name, value)`!  
+
+We then get the result of passing this dummy-object through `get_obj_stats` we imported earlier.  
+
+The `assertEqual` method is available on all testing classes and checks that the `result` is equal  to the string we specify. If they are the same, the test _passes_, otherwise it _fails_ and we  need to investigate what went wrong.
 
 ### Running your test
 
 To run your test you need to stand inside your `mygame` folder and execute the following command:
 
-    evennia test --settings settings.py .evadventure.tests
+    evennia test --settings settings.py evadventure.tests
 
-This will run all your `evadventure` tests (if you had more of them). To only run your utility tests 
-you could do 
+This will run all your `evadventure` tests (if you had more of them). To only run your utility tests  you could do 
 
-    evennia test --settings settings.py .evadventure.tests.test_utils
+    evennia test --settings settings.py evadventure.tests.test_utils
 
-If all goes well, you should get an `OK` back. Otherwise you need to check the failure, maybe 
-your return string doesn't quite match what you expected.
+If all goes well, you should get an `OK` back. Otherwise you need to check the failure, maybe  your return string doesn't quite match what you expected. 
+
+> Hint: The example unit test code above contains a deliberate error in capitalization. See if you can interpret the error and fix it!
 
 ## Summary 
 
-It's very important to understand how you import code between modules in Python, so if this is still 
-confusing to you, it's worth to read up on this more. 
+It's very important to understand how you import code between modules in Python, so if this is still confusing to you, it's worth to read up on this more. 
 
-That said, many newcomers are confused with how to begin, so by creating the folder structure, some 
-small modules and even making your first unit test, you are off to a great start!
+That said, many newcomers are confused with how to begin, so by creating the folder structure, some  small modules and even making your first unit test, you are off to a great start!

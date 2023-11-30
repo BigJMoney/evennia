@@ -66,8 +66,11 @@ returned as None as well. If the options are returned as None, the
 menu is immediately exited and the default "look" command is called.
 
 - `text` (str, tuple or None): Text shown at this node. If a tuple, the
-   second element in the tuple is a help text to display at this
-   node when the user enters the menu help command there.
+   second element in the tuple holds either a string or a dict. If a string,
+   this is the help text to show when `auto_help` is active for the menu and
+   the user presses `h`. If a dict, this is a mapping of `'help topic': 'help text'` to
+   show in that menu. This can be used to show information without having to
+   switch to another node.
 - `options` (tuple, dict or None): If `None`, this exits the menu.
   If a single dict, this is a single-option node. If a tuple,
   it should be a tuple of option dictionaries. Option dicts have the following keys:
@@ -273,12 +276,24 @@ from django.conf import settings
 
 # i18n
 from django.utils.translation import gettext as _
+
+import evennia
 from evennia import CmdSet, Command
 from evennia.commands import cmdhandler
 from evennia.utils import logger
 from evennia.utils.ansi import strip_ansi
 from evennia.utils.evtable import EvColumn, EvTable
-from evennia.utils.utils import crop, dedent, is_iter, m_len, make_iter, mod_import, pad, to_str
+from evennia.utils.utils import (
+    crop,
+    dedent,
+    is_iter,
+    m_len,
+    make_iter,
+    mod_import,
+    pad,
+    to_str,
+    inherits_from,
+)
 
 # read from protocol NAWS later?
 _MAX_TEXT_WIDTH = settings.CLIENT_DEFAULT_WIDTH
@@ -362,6 +377,21 @@ class CmdEvMenuNode(Command):
     def get_help(self):
         return "Menu commands are explained within the menu."
 
+    def _update_aliases(self, menu):
+        """Add aliases to make sure to override defaults if we defined we want it."""
+
+        new_aliases = [_CMD_NOMATCH]
+        if menu.auto_quit and "quit" not in self.aliases:
+            new_aliases.extend(["q", "quit"])
+        if menu.auto_look and "look" not in self.aliases:
+            new_aliases.extend(["l", "look"])
+        if menu.auto_help and "help" not in self.aliases:
+            new_aliases.extend(["h", "help"])
+        if len(new_aliases) > 1:
+            self.set_aliases(new_aliases)
+
+        self.msg(f"aliases: {self.aliases}")
+
     def func(self):
         """
         Implement all menu commands.
@@ -382,7 +412,8 @@ class CmdEvMenuNode(Command):
                     saved_options[2]["startnode_input"] = startnode_input
                 MenuClass = saved_options[0]
                 # this will create a completely new menu call
-                MenuClass(caller, *saved_options[1], **saved_options[2])
+                menu = MenuClass(caller, *saved_options[1], **saved_options[2])
+                # self._update_aliases(menu)
                 return True
             return None
 
@@ -394,7 +425,7 @@ class CmdEvMenuNode(Command):
             if _restore(caller):
                 return
             orig_caller = caller
-            caller = caller.account if hasattr(caller, "account") else None
+            caller = caller.account if inherits_from(caller, evennia.DefaultObject) else None
             menu = caller.ndb._evmenu if caller else None
             if not menu:
                 if caller and _restore(caller):
@@ -408,6 +439,9 @@ class CmdEvMenuNode(Command):
                         err
                     )  # don't give the session as a kwarg here, direct to original
                     raise EvMenuError(err)
+
+        # self._update_aliases(menu)
+
         # we must do this after the caller with the menu has been correctly identified since it
         # can be either Account, Object or Session (in the latter case this info will be
         # superfluous).
@@ -537,7 +571,7 @@ class EvMenu:
                 by default in all nodes of the menu. This will print out the current state of
                 the menu. Deactivate for production use! When the debug flag is active, the
                 `persistent` flag is deactivated.
-            **kwargs: All kwargs will become initialization variables on `caller.ndb._menutree`,
+            **kwargs: All kwargs will become initialization variables on `caller.ndb._evmenu`,
                 to be available at run.
 
         Raises:
@@ -631,7 +665,7 @@ class EvMenu:
         # store ourself on the object
         self.caller.ndb._evmenu = self
 
-        # DEPRECATED - for backwards-compatibility. Use `.ndb._evmenu` instead
+        # TODO DEPRECATED - for backwards-compatibility. Use `.ndb._evmenu` instead
         self.caller.ndb._menutree = self
 
         if persistent:
@@ -870,6 +904,9 @@ class EvMenu:
             if not nodename:
                 # no nodename return. Re-run current node
                 nodename = self.nodename
+        elif nodename_or_callable is None:
+            # repeat current node
+            nodename = self.nodename
         else:
             # the nodename given directly
             nodename = nodename_or_callable
@@ -890,10 +927,23 @@ class EvMenu:
         # validation of the node return values
 
         # if the nodetext is a list/tuple, the second set is the help text.
+        # helptext can also be a dict, which allows for tooltip command-text (key-value) or
+        # ((key,aliases)-value) pairs.
+
+        # make sure helptext is defined
         helptext = ""
         if is_iter(nodetext):
             nodetext, *helptext = nodetext
             helptext = helptext[0] if helptext else ""
+
+            if isinstance(helptext, dict):
+                # handle both (key-value) and (key, aliases)-value pairs
+                _help_text = {}
+                for topic_keys, help_entry in helptext.items():
+                    for topic_key in make_iter(topic_keys):
+                        _help_text[topic_key.strip().lower()] = help_entry
+                helptext = _help_text
+
         nodetext = "" if nodetext is None else str(nodetext)
 
         # handle the helptext
@@ -915,7 +965,6 @@ class EvMenu:
         if options:
             options = [options] if isinstance(options, dict) else options
             for inum, dic in enumerate(options):
-
                 # homogenize the options dict
                 keys = make_iter(dic.get("key"))
                 desc = dic.get("desc", dic.get("text", None))
@@ -953,6 +1002,7 @@ class EvMenu:
             self._quitting = True
             self.caller.cmdset.remove(EvMenuCmdSet)
             del self.caller.ndb._evmenu
+            del self.caller.ndb._menutree  # TODO Deprecated
             if self._persistent:
                 self.caller.attributes.remove("_menutree_saved")
                 self.caller.attributes.remove("_menutree_saved_startnode")
@@ -1062,6 +1112,8 @@ class EvMenu:
                 self.goto(goto_node, raw_string, **(goto_kwargs or {}))
             elif self.auto_look and cmd in ("look", "l"):
                 self.display_nodetext()
+            elif self.auto_help and isinstance(self.helptext, dict) and cmd in self.helptext:
+                self.display_tooltip(cmd)
             elif self.auto_help and cmd in ("help", "h"):
                 self.display_helptext()
             elif self.auto_quit and cmd in ("quit", "q", "exit"):
@@ -1083,6 +1135,9 @@ class EvMenu:
 
     def display_helptext(self):
         self.msg(self.helptext)
+
+    def display_tooltip(self, cmd):
+        self.msg(self.helptext.get(cmd))
 
     # formatters - override in a child class
 
@@ -1307,7 +1362,6 @@ def list_node(option_generator, select=None, pagesize=10):
             return None, kwargs
 
         def _list_node(caller, raw_string, **kwargs):
-
             option_list = (
                 option_generator(caller) if callable(option_generator) else option_generator
             )
@@ -1445,7 +1499,7 @@ class CmdGetInput(Command):
         caller = self.caller
         try:
             getinput = caller.ndb._getinput
-            if not getinput and hasattr(caller, "account"):
+            if not getinput and inherits_from(caller, evennia.DefaultObject):
                 getinput = caller.account.ndb._getinput
                 if getinput:
                     caller = caller.account
@@ -1566,7 +1620,9 @@ class CmdYesNoQuestion(Command):
 
     def _clean(self, caller):
         del caller.ndb._yes_no_question
-        if not caller.cmdset.has(YesNoQuestionCmdSet) and hasattr(caller, "account"):
+        if not caller.cmdset.has(YesNoQuestionCmdSet) and inherits_from(
+            caller, evennia.DefaultObject
+        ):
             caller.account.cmdset.remove(YesNoQuestionCmdSet)
         else:
             caller.cmdset.remove(YesNoQuestionCmdSet)
@@ -1576,7 +1632,7 @@ class CmdYesNoQuestion(Command):
         caller = self.caller
         try:
             yes_no_question = caller.ndb._yes_no_question
-            if not yes_no_question and hasattr(caller, "account"):
+            if not yes_no_question and inherits_from(caller, evennia.DefaultObject):
                 yes_no_question = caller.account.ndb._yes_no_question
                 caller = caller.account
 

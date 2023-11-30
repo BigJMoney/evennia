@@ -41,6 +41,7 @@ from django.core.paginator import Paginator
 from django.db.models.query import QuerySet
 from django.utils.translation import gettext as _
 
+import evennia
 from evennia.commands import cmdhandler
 from evennia.commands.cmdset import CmdSet
 from evennia.commands.command import Command
@@ -78,7 +79,7 @@ class CmdMore(Command):
         Implement the command
         """
         more = self.caller.ndb._more
-        if not more and hasattr(self.caller, "account"):
+        if not more and inherits_from(self.caller, evennia.DefaultObject):
             more = self.caller.account.ndb._more
         if not more:
             self.caller.msg("Error in loading the pager. Contact an admin.")
@@ -156,7 +157,6 @@ class EvMore(object):
         page_formatter=str,
         **kwargs,
     ):
-
         """
         Initialization of the EvMore pager.
 
@@ -192,7 +192,11 @@ class EvMore(object):
                 the caller when the more page exits. Note that this will be using whatever
                 cmdset the user had *before* the evmore pager was activated (so none of
                 the evmore commands will be available when this is run).
-            kwargs (any, optional): These will be passed on to the `caller.msg` method.
+            kwargs (any, optional): These will be passed on to the `caller.msg` method. Notably,
+                one can pass additional outputfuncs this way. There is one special kwarg:
+                - text_kwargs - extra kwargs to pass with the text outputfunc, e.g.
+                  `text_kwargs={"type": "help"} would result to each page being sent
+                  to `msg` as `text=(pagetxt, {"type": "help"})`.
 
         Examples:
 
@@ -234,6 +238,9 @@ class EvMore(object):
         self.exit_on_lastpage = exit_on_lastpage
         self.exit_cmd = exit_cmd
         self._exit_msg = _("|xExited pager.|n")
+
+        self._text_kwargs = kwargs.pop("text_kwargs", {})
+
         self._kwargs = kwargs
 
         self._data = None
@@ -277,10 +284,11 @@ class EvMore(object):
         if not sessions:
             self.page_quit()
             return
-        # this must be an 'is', not == check
+        # this must be an 'is' check, not an == check
         if not any(ses for ses in sessions if self._session is ses):
             self._session = sessions[0]
-        self._caller.msg(text=page, session=self._session, **self._kwargs)
+        text_outputfunc = (page, (), self._text_kwargs)
+        self._caller.msg(text=text_outputfunc, session=self._session, **self._kwargs)
 
     def page_top(self):
         """
@@ -435,8 +443,11 @@ class EvMore(object):
             # no justification. Simple division by line
             lines = text.split("\n")
 
+        # note: If joining on ANSIString here, we will parse out || escapes into | too early,
+        # meaning the protocol will later parse into color; better to leave things and only parse
+        # once.
         self._data = [
-            _LBR.join(lines[i : i + self.height]) for i in range(0, len(lines), self.height)
+            "\n".join(lines[i : i + self.height]) for i in range(0, len(lines), self.height)
         ]
         self._npages = len(self._data)
 

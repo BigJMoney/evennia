@@ -2,15 +2,18 @@
 Base typeclass for in-game Channels.
 
 """
+import re
+
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from django.utils.text import slugify
 
+import evennia
 from evennia.comms.managers import ChannelManager
 from evennia.comms.models import ChannelDB
 from evennia.typeclasses.models import TypeclassBase
 from evennia.utils import create, logger
-from evennia.utils.utils import make_iter
+from evennia.utils.utils import make_iter, inherits_from
 
 
 class DefaultChannel(ChannelDB, metaclass=TypeclassBase):
@@ -65,7 +68,7 @@ class DefaultChannel(ChannelDB, metaclass=TypeclassBase):
 
     # default nick-alias replacements (default using the 'channel' command)
     channel_msg_nick_pattern = r"{alias}\s*?|{alias}\s+?(?P<arg1>.+?)"
-    channel_msg_nick_replacement = "channel {channelname} = $1"
+    channel_msg_nick_replacement = "@channel {channelname} = $1"
 
     def at_first_save(self):
         """
@@ -98,6 +101,8 @@ class DefaultChannel(ChannelDB, metaclass=TypeclassBase):
                 self.attributes.add("desc", cdict["desc"])
             if cdict.get("tags"):
                 self.tags.batch_add(*cdict["tags"])
+            if cdict.get("attrs"):
+                self.attributes.batch_add(*cdict["attrs"])
 
     def basetype_setup(self):
         self.locks.add("send:all();listen:all();control:perm(Admin)")
@@ -161,7 +166,7 @@ class DefaultChannel(ChannelDB, metaclass=TypeclassBase):
 
         """
         has_sub = self.subscriptions.has(subscriber)
-        if not has_sub and hasattr(subscriber, "account"):
+        if not has_sub and inherits_from(subscriber, evennia.DefaultObject):
             # it's common to send an Object when we
             # by default only allow Accounts to subscribe.
             has_sub = self.subscriptions.has(subscriber.account)
@@ -184,7 +189,7 @@ class DefaultChannel(ChannelDB, metaclass=TypeclassBase):
             # display listening subscribers in bold
             string = ", ".join(
                 [
-                    account.key if account not in listening else "|w%s|n" % account.key
+                    account.key if account not in listening else f"|w{account.key}|n"
                     for account in subs
                 ]
             )
@@ -475,7 +480,7 @@ class DefaultChannel(ChannelDB, metaclass=TypeclassBase):
 
         # the message-pattern allows us to type the channel on its own without
         # needing to use the `channel` command explicitly.
-        msg_nick_pattern = self.channel_msg_nick_pattern.format(alias=alias)
+        msg_nick_pattern = self.channel_msg_nick_pattern.format(alias=re.escape(alias))
         msg_nick_replacement = self.channel_msg_nick_replacement.format(channelname=chan_key)
         user.nicks.add(
             msg_nick_pattern,

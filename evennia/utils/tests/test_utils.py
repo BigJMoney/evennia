@@ -56,7 +56,7 @@ class TestDedent(TestCase):
 
 class TestListToString(TestCase):
     """
-    Default function header from utils.py:
+    Default function header from time.py:
     list_to_string(inlist, sep=",", endsep=", and", addquote=False)
 
     Examples:
@@ -93,6 +93,7 @@ class TestListToString(TestCase):
             '"1", "2" and "3"', utils.list_to_string([1, 2, 3], endsep="and", addquote=True)
         )
         self.assertEqual("1 and 2", utils.list_to_string([1, 2]))
+        self.assertEqual("1, 2", utils.list_to_string([1, 2], endsep=","))
 
 
 class TestMLen(TestCase):
@@ -174,7 +175,7 @@ class TestANSIString(TestCase):
 
 class TestTimeformat(TestCase):
     """
-    Default function header from utils.py:
+    Default function header from time.py:
     time_format(seconds, style=0)
 
     """
@@ -317,7 +318,6 @@ class LatinifyTest(TestCase):
 
 
 class TestFormatGrid(TestCase):
-
     maxDiff = None
 
     def setUp(self):

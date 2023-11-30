@@ -1,14 +1,19 @@
+from unittest import skip
+
 from evennia import DefaultCharacter, DefaultExit, DefaultObject, DefaultRoom
 from evennia.objects.models import ObjectDB
-from evennia.objects.objects import DefaultObject
 from evennia.typeclasses.attributes import AttributeProperty
-from evennia.typeclasses.tags import AliasProperty, PermissionProperty, TagProperty
+from evennia.typeclasses.tags import (
+    AliasProperty,
+    PermissionProperty,
+    TagCategoryProperty,
+    TagProperty,
+)
 from evennia.utils import create
 from evennia.utils.test_resources import BaseEvenniaTest, EvenniaTestCase
 
 
 class DefaultObjectTest(BaseEvenniaTest):
-
     ip = "212.216.139.14"
 
     def test_object_create(self):
@@ -60,7 +65,10 @@ class DefaultObjectTest(BaseEvenniaTest):
         self.assertEqual(obj.db.creator_ip, self.ip)
 
     def test_exit_create(self):
-        description = "The steaming depths of the dumpster, ripe with refuse in various states of decomposition."
+        description = (
+            "The steaming depths of the dumpster, ripe with refuse in various states of"
+            " decomposition."
+        )
         obj, errors = DefaultExit.create(
             "in", self.room1, self.room2, account=self.account, description=description, ip=self.ip
         )
@@ -279,6 +287,8 @@ class TestObjectPropertiesClass(DefaultObject):
     testperm = PermissionProperty()
     awaretest = 5
     settest = 0
+    tagcategory1 = TagCategoryProperty("category_tag1")
+    tagcategory2 = TagCategoryProperty("category_tag1", "category_tag2", "category_tag3")
 
     @property
     def base_property(self):
@@ -299,10 +309,7 @@ class TestProperties(EvenniaTestCase):
     def tearDown(self):
         self.obj.delete()
 
-    def test_properties(self):
-        """
-        Test all properties assigned at class level.
-        """
+    def test_attribute_properties(self):
         obj = self.obj
 
         self.assertEqual(obj.db.attr1, "attr1")
@@ -326,6 +333,9 @@ class TestProperties(EvenniaTestCase):
         self.assertEqual(obj.db.attr3, "attr3b")
         self.assertTrue(obj.attributes.has("attr3"))
 
+    def test_tag_properties(self):
+        obj = self.obj
+
         self.assertTrue(obj.tags.has("tag1"))
         self.assertTrue(obj.tags.has("tag2", category="tagcategory"))
         self.assertTrue(obj.tags.has("tag3"))
@@ -336,6 +346,63 @@ class TestProperties(EvenniaTestCase):
         # Verify that regular properties do not get fetched in init_evennia_properties,
         # only Attribute or TagProperties.
         self.assertFalse(hasattr(obj, "property_initialized"))
+
+    def test_tag_category_properties(self):
+        obj = self.obj
+
+        self.assertFalse(obj.tags.has("category_tag1"))  # no category
+        self.assertTrue(obj.tags.has("category_tag1", category="tagcategory1"))
+        self.assertTrue(obj.tags.has("category_tag1", category="tagcategory2"))
+        self.assertTrue(obj.tags.has("category_tag2", category="tagcategory2"))
+        self.assertTrue(obj.tags.has("category_tag3", category="tagcategory2"))
+
+        self.assertEqual(obj.tagcategory1, ["category_tag1"])
+        self.assertEqual(
+            set(obj.tagcategory2), set(["category_tag1", "category_tag2", "category_tag3"])
+        )
+
+    def test_tag_category_properties_external_modification(self):
+        obj = self.obj
+
+        self.assertEqual(obj.tagcategory1, ["category_tag1"])
+        self.assertEqual(
+            set(obj.tagcategory2), set(["category_tag1", "category_tag2", "category_tag3"])
+        )
+
+        # add extra tag to category
+        obj.tags.add("category_tag2", category="tagcategory1")
+        self.assertEqual(
+            set(obj.tags.get(category="tagcategory1")),
+            set(["category_tag1", "category_tag2"]),
+        )
+        self.assertEqual(set(obj.tagcategory1), set(["category_tag1", "category_tag2"]))
+
+        # add/remove extra tags to category
+        obj.tags.add("category_tag4", category="tagcategory2")
+        obj.tags.remove("category_tag3", category="tagcategory2")
+        self.assertEqual(
+            set(obj.tags.get(category="tagcategory2", return_list=True)),
+            set(["category_tag1", "category_tag2", "category_tag4"]),
+        )
+        # note that when we access the property again, it will be updated to contain the same tags
+        self.assertEqual(
+            set(obj.tagcategory2),
+            set(["category_tag1", "category_tag2", "category_tag3", "category_tag4"]),
+        )
+
+        del obj.tagcategory1
+        # should be deleted from database
+        self.assertEqual(obj.tags.get(category="tagcategory1", return_list=True), [])
+        # accessing the property should return the default value
+        self.assertEqual(obj.tagcategory1, ["category_tag1"])
+
+        del obj.tagcategory2
+        # should be deleted from database
+        self.assertEqual(obj.tags.get(category="tagcategory2", return_list=True), [])
+        # accessing the property should return the default value
+        self.assertEqual(
+            set(obj.tagcategory2), set(["category_tag1", "category_tag2", "category_tag3"])
+        )
 
     def test_object_awareness(self):
         """Test the "object-awareness" of customized AttributeProperty getter/setters"""
@@ -363,3 +430,37 @@ class TestProperties(EvenniaTestCase):
         del obj.cusattr
         self.assertEqual(obj.cusattr, 5)
         self.assertEqual(obj.settest, 5)
+
+    @skip("TODO: Needs more research")
+    def test_stored_object_queries(self):
+        """,
+        Test https://github.com/evennia/evennia/issues/3155, where AttributeProperties
+        holding another object references would lead to db queries not finding
+        that nested object.
+
+        """
+        obj1 = create.create_object(TestObjectPropertiesClass, key="obj1")
+        obj2 = create.create_object(TestObjectPropertiesClass, key="obj2")
+        obj1.attr1 = obj2
+
+        # check property works
+        self.assertEqual(obj1.attr1, obj2)
+
+        self.assertEqual(obj1.attributes.get("attr1"), obj2)
+        obj1.attributes.reset_cache()
+        self.assertEqual(obj1.attributes.get("attr1"), obj2)
+
+        self.assertIn(obj1, TestObjectPropertiesClass.objects.get_by_attribute("attr1"))
+        self.assertEqual(
+            list(TestObjectPropertiesClass.objects.get_by_attribute("attr1", value=obj2)), [obj1]
+        )
+
+        # now we query for it by going via the Attribute table
+        query = TestObjectPropertiesClass.objects.filter(
+            db_attributes__db_key="attr1", db_attributes__db_value=obj2
+        )
+
+        self.assertEqual(list(query), [obj1])
+
+        obj1.delete()
+        obj2.delete()

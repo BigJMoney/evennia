@@ -39,6 +39,7 @@ from twisted.internet import reactor, threads
 from twisted.internet.defer import returnValue  # noqa - used as import target
 from twisted.internet.task import deferLater
 
+import evennia
 from evennia.utils import logger
 
 _MULTIMATCH_TEMPLATE = settings.SEARCH_MULTIMATCH_TEMPLATE
@@ -448,7 +449,7 @@ def iter_to_str(iterable, sep=",", endsep=", and", addquote=False):
         iterable = tuple(str(val) for val in iterable)
 
     if endsep:
-        if endsep.startswith(sep):
+        if endsep.startswith(sep) and endsep != sep:
             # oxford comma alternative
             endsep = endsep[1:] if len_iter < 3 else endsep
         elif endsep[0] not in punctuation:
@@ -1062,14 +1063,15 @@ def server_services():
         services (dict): A dict of available services.
 
     """
-    from evennia.server.sessionhandler import SESSIONS
 
-    if hasattr(SESSIONS, "server") and hasattr(SESSIONS.server, "services"):
-        server = SESSIONS.server.services.namedServices
+    if hasattr(evennia.SESSION_HANDLER, "server") and hasattr(
+        evennia.SESSION_HANDLER.server, "services"
+    ):
+        server = evennia.SESSION_HANDLER.server.services.namedServices
     else:
         # This function must be called from inside the evennia process.
         server = {}
-    del SESSIONS
+    del evennia.SESSION_HANDLER
     return server
 
 
@@ -1976,7 +1978,6 @@ def format_grid(elements, width=78, sep="  ", verbatim_elements=None, line_prefi
         ic = 0
         row = ""
         for ie, element in enumerate(elements):
-
             wl = wls[ie]
             lrow = display_len((row))
             # debug = row.replace(" ", ".")
@@ -2556,12 +2557,14 @@ def interactive(func):
             elif isinstance(value, str):
                 if not caller:
                     raise ValueError(
-                        "To retrieve input from a @pausable method, that method "
-                        "must be called with a 'caller' argument)"
+                        "To use `result yield('prompt')` in an @interactive method, that "
+                        "method must have an argument named `caller`.)"
                     )
                 get_input(caller, value, _process_input, generator=generator)
             else:
-                raise ValueError("yield(val) in a @pausable method must have an int/float as arg.")
+                raise ValueError(
+                    "yield(val) in an @interactive method must have an int/float as arg."
+                )
 
     def decorator(*args, **kwargs):
         argnames = inspect.getfullargspec(func).args

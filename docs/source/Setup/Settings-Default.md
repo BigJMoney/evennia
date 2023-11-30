@@ -53,6 +53,9 @@ SERVER_HOSTNAME = "localhost"
 # Lockdown mode will cut off the game from any external connections
 # and only allow connections from localhost. Requires a cold reboot.
 LOCKDOWN_MODE = False
+# Controls whether new account registration is available.
+# Set to False to lock down the registration page and the create account command.
+NEW_ACCOUNT_REGISTRATION_ENABLED = True
 # Activate telnet service
 TELNET_ENABLED = True
 # A list of ports the Evennia telnet server listens on Can be one or many.
@@ -65,6 +68,16 @@ SSL_ENABLED = False
 SSL_PORTS = [4003]
 # Telnet+SSL Interface addresses to listen to. If 0.0.0.0, listen to all. Use :: for IPv6.
 SSL_INTERFACES = ["0.0.0.0"]
+# Telnet+SSL certificate issuers. Don't change unless you have issues, e.g. CN may need to be
+# changed to your server's hostname.
+SSL_CERTIFICATE_ISSUER = {
+    "C": "EV",
+    "ST": "Evennia",
+    "L": "Evennia",
+    "O": "Evennia Security",
+    "OU": "Evennia Department",
+    "CN": "evennia",
+}
 # OOB (out-of-band) telnet communication allows Evennia to communicate
 # special commands and data with enabled Telnet clients. This is used
 # to create custom client interfaces over a telnet connection. To make
@@ -133,6 +146,7 @@ EVENNIA_ADMIN = True
 # operating between two processes on the same machine. You usually don't need to
 # change this unless you cannot use the default AMP port/host for
 # whatever reason.
+AMP_ENABLED = True
 AMP_HOST = "localhost"
 AMP_PORT = 4006
 AMP_INTERFACE = "127.0.0.1"
@@ -1014,7 +1028,7 @@ TEMPLATES = [
     }
 ]
 # Django cache settings
-# https://docs.djangoproject.com/en/dev/topics/cache/#setting-up-the-cache
+# https://docs.djangoproject.com/en/4.1/topics/cache/#setting-up-the-cache
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -1038,6 +1052,24 @@ MIDDLEWARE = [
     "django.contrib.flatpages.middleware.FlatpageFallbackMiddleware",
     "evennia.web.utils.middleware.SharedLoginMiddleware",
 ]
+
+# A list of Django apps (see INSTALLED_APPS) that will be listed first (if present)
+# in the Django web Admin page.
+DJANGO_ADMIN_APP_ORDER = [
+    "accounts",
+    "objects",
+    "scripts",
+    "comms",
+    "help",
+    "typeclasses",
+    "server",
+    "sites",
+    "flatpages",
+    "auth",
+]
+
+# The following apps will be excluded from the Django web Admin page.
+DJANGO_ADMIN_APP_EXCLUDE = list()
 
 ######################################################################
 # Evennia components
@@ -1073,7 +1105,7 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = "accounts.AccountDB"
 
 # Password validation plugins
-# https://docs.djangoproject.com/en/1.11/ref/settings/#auth-password-validators
+# https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {
@@ -1143,6 +1175,10 @@ REST_API_ENABLED = False
 # together with your own variations. You should usually never have to touch
 # this, and if so, you really need to know what you are doing.
 
+# The primary Twisted Services used to start up Evennia.
+EVENNIA_SERVER_SERVICE_CLASS = "evennia.server.service.EvenniaServerService"
+EVENNIA_PORTAL_SERVICE_CLASS = "evennia.server.portal.service.EvenniaPortalService"
+
 # The Base Session Class is used as a parent class for all Protocols such as
 # Telnet and SSH.) Changing this could be really dangerous. It will cascade
 # to tons of classes. You generally shouldn't need to touch protocols.
@@ -1210,7 +1246,7 @@ AMP_CLIENT_PROTOCOL_CLASS = "evennia.server.amp_client.AMPServerClientProtocol"
 # don't change this manually, it can be checked from code to know if
 # being run from a unit test (set by the evennia.utils.test_resources.BaseEvenniaTest
 # and BaseEvenniaTestCase unit testing parents)
-_TEST_ENVIRONMENT = False
+TEST_ENVIRONMENT = False
 
 ######################################################################
 # Django extensions

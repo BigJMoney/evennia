@@ -1,11 +1,8 @@
 # Handling Equipment 
 
-In _Knave_, you have a certain number of inventory "slots". The amount of slots is given by `CON + 10`. 
-All items (except coins) have a `size`, indicating how many slots it uses. You can't carry more items 
-than you have slot-space for. Also items wielded or worn count towards the slots. 
+In _Knave_, you have a certain number of inventory "slots". The amount of slots is given by `CON + 10`.  All items (except coins) have a `size`, indicating how many slots it uses. You can't carry more items  than you have slot-space for. Also items wielded or worn count towards the slots. 
 
-We still need to track what the character is using however: What weapon they have readied affects the damage
-they can do. The shield, helmet and armor they use affects their defense. 
+We still need to track what the character is using however: What weapon they have readied affects the damage they can do. The shield, helmet and armor they use affects their defense. 
 
 We have already set up the possible 'wear/wield locations' when we defined our Objects
 [in the previous lesson](./Beginner-Tutorial-Objects.md). This is what we have in `enums.py`:
@@ -25,8 +22,7 @@ class WieldLocation(Enum):
     HEAD = "head"  # helmets
 ```
 
-Basically, all the weapon/armor locations are exclusive - you can only have one item in each (or none). 
-The BACKPACK is special - it contains any number of items (up to the maximum slot usage).
+Basically, all the weapon/armor locations are exclusive - you can only have one item in each (or none).  The BACKPACK is special - it contains any number of items (up to the maximum slot usage).
 
 ## EquipmentHandler that saves
 
@@ -36,12 +32,9 @@ The BACKPACK is special - it contains any number of items (up to the maximum slo
 If you want to understand more about behind how Evennia uses handlers, there is a 
 [dedicated tutorial](../../Tutorial-Persistent-Handler.md) talking about the principle.
 ```
-In default Evennia, everything you pick up will end up "inside" your character object (that is, have
-you as its `.location`). This is called your _inventory_ and has no limit. We will keep 'moving items into us'
-when we pick them up, but we will add more functionality using an _Equipment handler_.
+In default Evennia, everything you pick up will end up "inside" your character object (that is, have you as its `.location`). This is called your _inventory_ and has no limit. We will keep 'moving items into us' when we pick them up, but we will add more functionality using an _Equipment handler_.
 
-A handler is (for our purposes) an object that sits "on" another entity, containing functionality 
-for doing one specific thing (managing equipment, in our case).
+A handler is (for our purposes) an object that sits "on" another entity, containing functionality for doing one specific thing (managing equipment, in our case).
 
 This is the start of our handler: 
 
@@ -104,35 +97,23 @@ After reloading the server, the equipment-handler will now be accessible on char
 
     character.equipment
 
-The `@lazy_property` works such that it will not load the handler until someone actually tries to 
-fetch it with `character.equipment`. When that 
-happens, we start up the handler and feed it `self` (the `Character` instance itself). This is what 
-enters `__init__` as `.obj` in the `EquipmentHandler` code above.
+The `@lazy_property` works such that it will not load the handler until someone actually tries to  fetch it with `character.equipment`. When that  happens, we start up the handler and feed it `self` (the `Character` instance itself). This is what  enters `__init__` as `.obj` in the `EquipmentHandler` code above.
 
-So we now have a handler on the character, and the handler has a back-reference to the character it sits
-on. 
+So we now have a handler on the character, and the handler has a back-reference to the character it sits on. 
 
 Since the handler itself is just a regular Python object, we need to use the `Character` to store
-our data - our _Knave_ "slots". We must save them to the database, because we want the server to remember
-them even after reloading.
+our data - our _Knave_ "slots". We must save them to the database, because we want the server to remember them even after reloading.
 
-Using `self.obj.attributes.add()` and `.get()` we save the data to the Character in a specially named
-[Attribute](../../../Components/Attributes.md). Since we use a `category`, we are unlikely to collide with 
+Using `self.obj.attributes.add()` and `.get()` we save the data to the Character in a specially named [Attribute](../../../Components/Attributes.md). Since we use a `category`, we are unlikely to collide with 
 other Attributes.
 
-Our storage structure is a `dict` with keys after our available `WieldLocation` enums. Each can only 
-have one item except `WieldLocation.BACKPACK`, which is a list.
+Our storage structure is a `dict` with keys after our available `WieldLocation` enums. Each can only have one item except `WieldLocation.BACKPACK`, which is a list.
 
 ## Connecting the EquipmentHandler
 
-Whenever an object leaves from one location to the next, Evennia will call a set of _hooks_ (methods) on the 
-object that moves, on the source-location and on its destination. This is the same for all moving things -
-whether it's a character moving between rooms or an item being dropping from your hand to the ground. 
+Whenever an object leaves from one location to the next, Evennia will call a set of _hooks_ (methods) on the  object that moves, on the source-location and on its destination. This is the same for all moving things - whether it's a character moving between rooms or an item being dropping from your hand to the ground. 
 
-We need to tie our new `EquipmentHandler` into this system. By reading the doc page on [Objects](../../../Components/Objects.md),
-or looking at the [DefaultObject.move_to](evennia.objects.objects.DefaultObject.move_to) docstring, we'll 
-find out what hooks Evennia will call. Here `self` is the object being moved from 
-`source_location` to `destination`: 
+We need to tie our new `EquipmentHandler` into this system. By reading the doc page on [Objects](../../../Components/Objects.md), or looking at the [DefaultObject.move_to](evennia.objects.objects.DefaultObject.move_to) docstring, we'll find out what hooks Evennia will call. Here `self` is the object being moved from `source_location` to `destination`: 
 
 
 1. `self.at_pre_move(destination)` (abort if return False)
@@ -145,9 +126,7 @@ find out what hooks Evennia will call. Here `self` is the object being moved fro
 8. `destination.at_object_receive(self, source_location)`
 9. `self.at_post_move(source_location)`
 
-All of these hooks can be overridden to customize movement behavior. In this case we are interested in 
-controlling how items 'enter' and 'leave' our character - being 'inside' the character is the same as 
-them 'carrying' it. We have three good hook-candidates to use for this. 
+All of these hooks can be overridden to customize movement behavior. In this case we are interested in controlling how items 'enter' and 'leave' our character - being 'inside' the character is the same as them 'carrying' it. We have three good hook-candidates to use for this. 
 
 - `.at_pre_object_receive` - used to check if you can actually pick something up, or if your equipment-store is full.
 - `.at_object_receive` - used to add the item to the equipmenthandler
@@ -187,16 +166,15 @@ class EvAdventureCharacter(LivingMixin, DefaultCharacter):
         self.equipment.remove(moved_object)
 ```
 
-Above we have assumed the `EquipmentHandler` (`.equipment`) has methods `.validate_slot_usage`, 
-`.add` and `.remove`. But we haven't actually added them yet - we just put some reasonable names! Before 
-we can use this, we need to go actually adding those methods. 
+Above we have assumed the `EquipmentHandler` (`.equipment`) has methods `.validate_slot_usage`,  `.add` and `.remove`. But we haven't actually added them yet - we just put some reasonable names! Before we can use this, we need to go actually adding those methods. 
+
+When you do things like `create/drop monster:NPC`, the npc will briefly be in your inventory before being dropped on the ground. Since an NPC is not a valid thing to equip, the EquipmentHandler will complain with an `EquipmentError` (we define this see below). So we need to 
 
 ## Expanding the Equipmenthandler
 
 ## `.validate_slot_usage`
 
 Let's start with implementing the first method we came up with above, `validate_slot_usage`:
-
 ```python 
 # mygame/evadventure/equipment.py 
 
@@ -240,7 +218,7 @@ class EquipmentHandler:
          size = obj.size
          max_slots = self.max_slots
          current_slot_usage = self.count_slots()
-         return current_slot_usage + size <= max_slots:
+         return current_slot_usage + size <= max_slots
 
 ```
 
@@ -249,15 +227,11 @@ The `@property` decorator turns a method into a property so you don't need to 'c
 That is, you can access `.max_slots` instead of `.max_slots()`. In this case, it's just a 
 little less to type.
 ```
-We add two helpers - the `max_slots` _property_ and `count_slots`, a method that calculate the current
-slots being in use. Let's figure out how they work. 
+We add two helpers - the `max_slots` _property_ and `count_slots`, a method that calculate the current slots being in use. Let's figure out how they work. 
 
 ### `.max_slots`
 
-For `max_slots`, remember that `.obj` on the handler is a back-reference to the `EvAdventureCharacter` we 
-put this handler on. `getattr` is a Python method for retrieving a named property on an object. 
-The `Enum` `Ability.CON.value` is the string `Constitution` (check out the 
-[first Utility and Enums tutorial](./Beginner-Tutorial-Utilities.md) if you don't recall).
+For `max_slots`, remember that `.obj` on the handler is a back-reference to the `EvAdventureCharacter` we  put this handler on. `getattr` is a Python method for retrieving a named property on an object. The `Enum` `Ability.CON.value` is the string `Constitution` (check out the [first Utility and Enums tutorial](./Beginner-Tutorial-Utilities.md) if you don't recall).
 
 So to be clear, 
 
@@ -276,24 +250,18 @@ which is the same as doing something like this:
 your_character.Constitution + 10 
 ```
 
-In our code we write `getattr(self.obj, Ability.CON.value, 1)` - that extra `1`   means that if there 
-should happen to _not_ be a property "Constitution" on `self.obj`, we should not error out but just 
-return 1.
+In our code we write `getattr(self.obj, Ability.CON.value, 1)` - that extra `1`   means that if there  should happen to _not_ be a property "Constitution" on `self.obj`, we should not error out but just  return 1.
 
 
 ### `.count_slots`
 
-In this helper we use two Python tools - the `sum()` function and a 
-[list comprehension](https://www.w3schools.com/python/python_lists_comprehension.asp). The former 
-simply adds the values of any iterable together. The latter is a more efficient way to create a list: 
+In this helper we use two Python tools - the `sum()` function and a  [list comprehension](https://www.w3schools.com/python/python_lists_comprehension.asp). The former  simply adds the values of any iterable together. The latter is a more efficient way to create a list: 
 
     new_list = [item for item in some_iterable if condition]
     all_above_5 = [num for num in range(10) if num > 5]  # [6, 7, 8, 9]
     all_below_5 = [num for num in range(10) if num < 5]  # [0, 1, 2, 3, 4]
 
-To make it easier to understand, try reading the last line above as "for every number in the range 0-9, 
-pick all with a value below 5 and make a list of them". You can also embed such comprehensions 
-directly in a function call like `sum()` without using `[]` around it. 
+To make it easier to understand, try reading the last line above as "for every number in the range 0-9,  pick all with a value below 5 and make a list of them". You can also embed such comprehensions directly in a function call like `sum()` without using `[]` around it. 
 
 In `count_slots` we have this code: 
 
@@ -305,10 +273,7 @@ wield_usage = sum(
 )
 ```
 
-We should be able to follow all except `slots.items()`. Since `slots` is a `dict`, we can use `.items()`
-to get a sequence of `(key, value)` pairs. We store these in `slot` and `slotobj`. So the above can 
-be understood as "for every `slot` and `slotobj`-pair in `slots`, check which slot location it is. 
-If it is _not_ in the backpack, get its size and add it to the list. Sum over all these 
+We should be able to follow all except `slots.items()`. Since `slots` is a `dict`, we can use `.items()` to get a sequence of `(key, value)` pairs. We store these in `slot` and `slotobj`. So the above can  be understood as "for every `slot` and `slotobj`-pair in `slots`, check which slot location it is.  If it is _not_ in the backpack, get its size and add it to the list. Sum over all these 
 sizes". 
 
 A less compact but maybe more readonable way to write this would be: 
@@ -327,14 +292,11 @@ together.
 
 ### Validating slots 
 
-With these helpers in place, `validate_slot_usage` now becomes simple. We use `max_slots` to see how much we can carry. 
-We then get how many slots we are already using (with `count_slots`) and see if our new `obj`'s size 
-would be too much for us. 
+With these helpers in place, `validate_slot_usage` now becomes simple. We use `max_slots` to see how much we can carry. We then get how many slots we are already using (with `count_slots`) and see if our new `obj`'s size would be too much for us. 
 
 ## `.add` and `.remove`
 
-We will make it so `.add` puts something in the `BACKPACK` location and `remove` drops it, wherever
-it is (even if it was in your hands).
+We will make it so `.add` puts something in the `BACKPACK` location and `remove` drops it, wherever it is (even if it was in your hands).
 
 ```python 
 # mygame/evadventure/equipment.py 
@@ -351,44 +313,56 @@ class EquipmentHandler:
         """
         Put something in the backpack.
         """
-        self.validate_slot_usage(obj)
-        self.slots[WieldLocation.BACKPACK].append(obj)
-        self._save()
+        if self.validate_slot_usage(obj):
+	        self.slots[WieldLocation.BACKPACK].append(obj)
+	        self._save()
 
-    def remove(self, slot):
+ def remove(self, obj_or_slot):
         """
-        Remove contents of a particular slot, for
-        example `equipment.remove(WieldLocation.SHIELD_HAND)`
+        Remove specific object or objects from a slot.
+
+        Returns a list of 0, 1 or more objects removed from inventory.
         """
         slots = self.slots
         ret = []
-        if slot is WieldLocation.BACKPACK:
-            # empty entire backpack! 
-            ret.extend(slots[slot])
-            slots[slot] = []
-        else:
-            ret.append(slots[slot])
-            slots[slot] = None
+        if isinstance(obj_or_slot, WieldLocation):
+            # a slot; if this fails, obj_or_slot must be obj
+            if obj_or_slot is WieldLocation.BACKPACK:
+                # empty entire backpack
+                ret.extend(slots[obj_or_slot])
+                slots[obj_or_slot] = []
+            else:
+                ret.append(slots[obj_or_slot])
+                slots[obj_or_slot] = None
+        elif obj_or_slot in self.slots.values():
+            # obj in use/wear slot
+            for slot, objslot in slots.items():
+                if objslot is obj_or_slot:
+                    slots[slot] = None
+                    ret.append(objslot)
+        elif obj_or_slot in slots[WieldLocation.BACKPACK]:             # obj in backpack slot
+            try:
+                slots[WieldLocation.BACKPACK].remove(obj_or_slot)
+                ret.append(obj_or_slot)
+            except ValueError:
+                pass
         if ret:
             self._save()
         return ret
 ```
 
-Both of these should be straight forward to follow. In `.add`, we make use of `validate_slot_usage` to 
+In `.add`, we make use of `validate_slot_usage` to 
 double-check we can actually fit the thing, then we add the item to the backpack. 
 
-In `.delete`, we allow emptying by `WieldLocation` - we figure out what slot it is and return 
-the item within (if any). If we gave `BACKPACK` as the slot, we empty the backpack and 
-return all items. 
+In `.remove`, we allow emptying both by `WieldLocation` or by explicitly saying which object to remove. Note that the first `if` statement checks if `obj_or_slot` is a slot. So if that fails then code in the other `elif` can safely assume that it must instead be an object!
 
-Whenever we change the equipment loadout we must make sure to `._save()` the result, or it will 
-be lost after a server reload.
+Any removed objects are returned. If we gave `BACKPACK` as the slot, we empty the backpack and return all items inside it. 
+
+Whenever we change the equipment loadout we must make sure to `._save()` the result, or it will be lost after a server reload.
 
 ## Moving things around 
  
-With the help of `.remove()` and `.add()`  we can get things in and out of the `BACKPACK` equipment 
-location. We also need to grab stuff from the backpack and wield or wear it. We add a `.move` method 
-on the `EquipmentHandler` to do this:
+With the help of `.remove()` and `.add()`  we can get things in and out of the `BACKPACK` equipment location. We also need to grab stuff from the backpack and wield or wear it. We add a `.move` method  on the `EquipmentHandler` to do this:
 
 ```python 
 # mygame/evadventure/equipment.py 
@@ -406,7 +380,9 @@ class EquipmentHandler:
          
         # make sure to remove from equipment/backpack first, to avoid double-adding
         self.remove(obj) 
-        
+        if not self.validate_slot_usage(obj):
+            return
+
         slots = self.slots
         use_slot = getattr(obj, "inventory_use_slot", WieldLocation.BACKPACK)
 
@@ -437,9 +413,7 @@ class EquipmentHandler:
         self._save() 
 ``` 
 
-Here we remember that every `EvAdventureObject` has an `inventory_use_slot` property that tells us where
-it goes. So we just need to move the object to that slot, replacing whatever is in that place 
-from before. Anything we replace goes back to the backpack. 
+Here we remember that every `EvAdventureObject` has an `inventory_use_slot` property that tells us where it goes. So we just need to move the object to that slot, replacing whatever is in that place from before. Anything we replace goes back to the backpack. 
 
 ## Get everything 
 
@@ -477,16 +451,14 @@ Here we get all the equipment locations and add their contents together into a l
 
 ## Weapon and armor 
 
-It's convenient to have the `EquipmentHandler` easily tell you what weapon is currently wielded 
-and what _armor_ level all worn equipment provides. Otherwise you'd need to figure out what item is 
-in which wield-slot and to add up armor slots manually every time you need to know. 
+It's convenient to have the `EquipmentHandler` easily tell you what weapon is currently wielded and what _armor_ level all worn equipment provides. Otherwise you'd need to figure out what item is in which wield-slot and to add up armor slots manually every time you need to know. 
 
 
 ```python 
 # mygame/evadventure/equipment.py 
 
-from .objects import WeaponEmptyHand
 from .enums import WieldLocation, Ability
+from .objects import get_bare_hand
 
 # ... 
 
@@ -516,20 +488,66 @@ class EquipmentHandler:
         weapon = slots[WieldLocation.TWO_HANDS]
         if not weapon:
             weapon = slots[WieldLocation.WEAPON_HAND]
+        # if we still don't have a weapon, we return None here
         if not weapon:
-            weapon = WeaponEmptyHand()
+ ~          weapon = get_bare_hands()
         return weapon
 
 ```
 
-In the `.armor()` method we get the item (if any) out of each relevant wield-slot (body, shield, head), 
-and grab their `armor` Attribute. We then `sum()` them all up. 
+In the `.armor()` method we get the item (if any) out of each relevant wield-slot (body, shield, head), and grab their `armor` Attribute. We then `sum()` them all up. 
 
-In `.weapon()`, we simply check which of the possible weapon slots (weapon-hand or two-hands) have 
-something in them. If not we fall back to the 'fake' weapon `WeaponEmptyHand` which is just a 'dummy' 
-object that represents your bare hands with damage and all.
-(created in [The Object tutorial](./Beginner-Tutorial-Objects.md#your-bare-hands) earlier).
+In `.weapon()`, we simply check which of the possible weapon slots (weapon-hand or two-hands) have  something in them. If not we fall back to the 'Bare Hands' object we created in the [Object tutorial lesson](./Beginner-Tutorial-Objects.md#your-bare-hands) earlier.
 
+### Fixing the Character class
+
+So we have added our equipment handler which validate what we put in it. This will however lead to a problem when we create things like NPCs in game, e.g. with 
+
+    create/drop monster:evadventure.npcs.EvAdventureNPC
+
+The problem is that when the/ monster is created it will briefly appear in your inventory before being dropped, so this code will fire on you when you do that (assuming you are an `EvAdventureCharacter`):
+
+```python
+# mygame/evadventure/characters.py
+# ... 
+
+class EvAdventureCharacter(LivingMixin, DefaultCharacter): 
+
+    # ... 
+
+    def at_object_receive(self, moved_object, source_location, **kwargs): 
+        """ 
+        Called by Evennia when an object arrives 'in' the character.
+        
+        """
+        self.equipment.add(moved_object)
+```
+
+At this means that the equipmenthandler will check the NPC, and since it's not a equippable thing, an `EquipmentError` will be raised, failing the creation. Since we want to be able to create npcs etc easily, we will handle this error with a `try...except` statement like so:
+
+```python
+# mygame/evadventure/characters.py
+# ... 
+from evennia import logger 
+from .equipment import EquipmentError
+
+class EvAdventureCharacter(LivingMixin, DefaultCharacter): 
+
+    # ... 
+
+    def at_object_receive(self, moved_object, source_location, **kwargs): 
+        """ 
+        Called by Evennia when an object arrives 'in' the character.
+        
+        """
+        try:
+            self.equipment.add(moved_object)
+        except EquipmentError:
+            logger.log_trace()
+            
+```
+
+Using Evennia's `logger.log_trace()` we catch the error and direct it to the server log. This allows you to see if there are real errors here as well, but once things work and these errors are spammy, you can also just replace the `logger.log_trace()` line with a `pass` to hide these errors. 
 
 ## Extra credits 
 
@@ -565,8 +583,9 @@ passing these into the handler's methods.
 from evennia.utils import create 
 from evennia.utils.test_resources import BaseEvenniaTest 
 
-from ..objects import EvAdventureRoom
+from ..objects import EvAdventureObject, EvAdventureHelmet, EvAdventureWeapon
 from ..enums import WieldLocation
+from ..characters import EvAdventureCharacter
 
 class TestEquipment(BaseEvenniaTest): 
     
@@ -589,11 +608,8 @@ class TestEquipment(BaseEvenniaTest):
 
 ## Summary 
 
-_Handlers_ are useful for grouping functionality together. Now that we spent our time making the 
-`EquipmentHandler`, we shouldn't need to worry about item-slots anymore - the handler 'handles' all 
-the details for us. As long as we call its methods, the details can be forgotten about.
+_Handlers_ are useful for grouping functionality together. Now that we spent our time making the  `EquipmentHandler`, we shouldn't need to worry about item-slots anymore - the handler 'handles' all  the details for us. As long as we call its methods, the details can be forgotten about.
 
 We also learned to use _hooks_ to tie _Knave_'s custom equipment handling into Evennia.
 
-With `Characters`, `Objects` and now `Equipment` in place, we should be able to move on to character
-generation - where players get to make their own character!
+With `Characters`, `Objects` and now `Equipment` in place, we should be able to move on to character generation - where players get to make their own character!

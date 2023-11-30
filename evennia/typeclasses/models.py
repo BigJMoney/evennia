@@ -35,6 +35,7 @@ from django.urls import reverse
 from django.utils.encoding import smart_str
 from django.utils.text import slugify
 
+import evennia
 from evennia.locks.lockhandler import LockHandler
 from evennia.server.signals import SIGNAL_TYPED_OBJECT_POST_RENAME
 from evennia.typeclasses import managers
@@ -50,6 +51,7 @@ from evennia.typeclasses.tags import (
     AliasHandler,
     PermissionHandler,
     Tag,
+    TagCategoryProperty,
     TagHandler,
     TagProperty,
 )
@@ -343,7 +345,7 @@ class TypedObject(SharedMemoryModel):
         by fetching them once.
         """
         for propkey, prop in self.__class__.__dict__.items():
-            if isinstance(prop, (AttributeProperty, TagProperty)):
+            if isinstance(prop, (AttributeProperty, TagProperty, TagCategoryProperty)):
                 try:
                     getattr(self, propkey)
                 except Exception:
@@ -699,7 +701,7 @@ class TypedObject(SharedMemoryModel):
             result (bool): If the permstring is passed or not.
 
         """
-        if hasattr(self, "account"):
+        if inherits_from(self, evennia.DefaultObject):
             if (
                 self.account
                 and self.account.is_superuser

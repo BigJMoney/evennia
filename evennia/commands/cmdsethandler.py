@@ -166,7 +166,6 @@ def import_cmdset(path, cmdsetobj, emit_to_obj=None, no_logging=False):
     ]
     errstring = ""
     for python_path in python_paths:
-
         if "." in path:
             modpath, classname = python_path.rsplit(".", 1)
         else:

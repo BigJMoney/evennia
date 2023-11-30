@@ -221,7 +221,6 @@ class ANSITextWrapper(TextWrapper):
         chunks.reverse()
 
         while chunks:
-
             # Start the list of chunks that will make up the current line.
             # cur_len is just the length of all the chunks in cur_line.
             cur_line = []
@@ -1402,7 +1401,6 @@ class EvTable:
         if self.height:
             # if we are fixing the table height, it means cells must crop text instead of resizing.
             if nrowmax:
-
                 # get minimum possible cell heights for each column
                 cheights_min = [
                     max(cell.get_min_height() for cell in (col[iy] for col in self.worktable))
@@ -1543,7 +1541,6 @@ class EvTable:
             # we need to add new rows to new column
             empty_rows = ["" for _ in range(abs(excess))]
             column.add_rows(*empty_rows, **options)
-            self.nrows -= excess
 
         if xpos is None or xpos > wtable - 1:
             # add to the end

@@ -6,6 +6,7 @@ from unittest import TestCase
 from django.test import override_settings
 from mock import MagicMock, Mock, patch
 
+import evennia
 from evennia.accounts.accounts import (
     AccountSessionHandler,
     DefaultAccount,
@@ -37,22 +38,20 @@ class TestAccountSessionHandler(TestCase):
         self.assertEqual(self.handler.get(), [])
         self.assertEqual(self.handler.get(100), [])
 
-        import evennia.server.sessionhandler
-
         s1 = MagicMock()
         s1.logged_in = True
         s1.uid = self.account.uid
-        evennia.server.sessionhandler.SESSIONS[s1.uid] = s1
+        evennia.SESSION_HANDLER[s1.uid] = s1
 
         s2 = MagicMock()
         s2.logged_in = True
         s2.uid = self.account.uid + 1
-        evennia.server.sessionhandler.SESSIONS[s2.uid] = s2
+        evennia.SESSION_HANDLER[s2.uid] = s2
 
         s3 = MagicMock()
         s3.logged_in = False
         s3.uid = self.account.uid + 2
-        evennia.server.sessionhandler.SESSIONS[s3.uid] = s3
+        evennia.SESSION_HANDLER[s3.uid] = s3
 
         self.assertEqual([s.uid for s in self.handler.get()], [s1.uid])
         self.assertEqual([s.uid for s in [self.handler.get(self.account.uid)]], [s1.uid])
@@ -106,14 +105,14 @@ class TestDefaultGuest(BaseEvenniaTest):
     def test_at_server_shutdown(self):
         account, errors = DefaultGuest.create(ip=self.ip)
         self.char1.delete = MagicMock()
-        account.db._playable_characters = [self.char1]
+        account.characters.add(self.char1)
         account.at_server_shutdown()
         self.char1.delete.assert_called()
 
     def test_at_post_disconnect(self):
         account, errors = DefaultGuest.create(ip=self.ip)
         self.char1.delete = MagicMock()
-        account.db._playable_characters = [self.char1]
+        account.characters.add(self.char1)
         account.at_post_disconnect()
         self.char1.delete.assert_called()
 
@@ -251,8 +250,6 @@ class TestDefaultAccount(TestCase):
     def test_puppet_object_already_puppeting(self):
         "Check puppet_object method called, already puppeting this"
 
-        import evennia.server.sessionhandler
-
         account = create.create_account(
             f"TestAccount{randint(0, 999999)}",
             email="test@test.com",
@@ -260,7 +257,7 @@ class TestDefaultAccount(TestCase):
             typeclass=DefaultAccount,
         )
         self.s1.uid = account.uid
-        evennia.server.sessionhandler.SESSIONS[self.s1.uid] = self.s1
+        evennia.SESSION_HANDLER[self.s1.uid] = self.s1
 
         self.s1.logged_in = True
         self.s1.data_out = Mock(return_value=None)
@@ -276,8 +273,6 @@ class TestDefaultAccount(TestCase):
     def test_puppet_object_no_permission(self):
         "Check puppet_object method called, no permission"
 
-        import evennia.server.sessionhandler
-
         account = create.create_account(
             f"TestAccount{randint(0, 999999)}",
             email="test@test.com",
@@ -285,7 +280,7 @@ class TestDefaultAccount(TestCase):
             typeclass=DefaultAccount,
         )
         self.s1.uid = account.uid
-        evennia.server.sessionhandler.SESSIONS[self.s1.uid] = self.s1
+        evennia.SESSION_HANDLER[self.s1.uid] = self.s1
 
         self.s1.data_out = MagicMock()
         obj = Mock()
@@ -302,8 +297,6 @@ class TestDefaultAccount(TestCase):
     def test_puppet_object_joining_other_session(self):
         "Check puppet_object method called, joining other session"
 
-        import evennia.server.sessionhandler
-
         account = create.create_account(
             f"TestAccount{randint(0, 999999)}",
             email="test@test.com",
@@ -311,7 +304,7 @@ class TestDefaultAccount(TestCase):
             typeclass=DefaultAccount,
         )
         self.s1.uid = account.uid
-        evennia.server.sessionhandler.SESSIONS[self.s1.uid] = self.s1
+        evennia.SESSION_HANDLER[self.s1.uid] = self.s1
 
         self.s1.puppet = None
         self.s1.logged_in = True
@@ -332,8 +325,6 @@ class TestDefaultAccount(TestCase):
     def test_puppet_object_already_puppeted(self):
         "Check puppet_object method called, already puppeted"
 
-        import evennia.server.sessionhandler
-
         account = create.create_account(
             f"TestAccount{randint(0, 999999)}",
             email="test@test.com",
@@ -342,7 +333,7 @@ class TestDefaultAccount(TestCase):
         )
         self.account = account
         self.s1.uid = account.uid
-        evennia.server.sessionhandler.SESSIONS[self.s1.uid] = self.s1
+        evennia.SESSION_HANDLER[self.s1.uid] = self.s1
 
         self.s1.puppet = None
         self.s1.logged_in = True
@@ -361,25 +352,49 @@ class TestDefaultAccount(TestCase):
         )
         self.assertIsNone(obj.at_post_puppet.call_args)
 
+    @override_settings(MAX_NR_CHARACTERS=5)
+    def test_get_character_slots(self):
+        "Check get_character_slots method"
+
+        account = create.create_account(
+            f"TestAccount{randint(0, 999999)}",
+            email="test@test.com",
+            password="testpassword",
+            typeclass=DefaultAccount,
+        )
+
+        self.assertEqual(account.get_character_slots(), 5)
+        account.delete()
+
+    @override_settings(MAX_NR_CHARACTERS=5)
+    def test_get_available_character_slots(self):
+        "Check get_available_character_slots method"
+        account = create.create_account(
+            f"TestAccount{randint(0, 999999)}",
+            email="test@test.com",
+            password="testpassword",
+            typeclass=DefaultAccount,
+        )
+        self.assertEqual(account.get_available_character_slots(), 5)
+        account.delete()
+
 
 class TestAccountPuppetDeletion(BaseEvenniaTest):
     @override_settings(MULTISESSION_MODE=2)
     def test_puppet_deletion(self):
         # Check for existing chars
-        self.assertFalse(
-            self.account.db._playable_characters, "Account should not have any chars by default."
-        )
+        self.assertFalse(self.account.characters, "Account should not have any chars by default.")
 
         # Add char1 to account's playable characters
-        self.account.db._playable_characters.append(self.char1)
-        self.assertTrue(self.account.db._playable_characters, "Char was not added to account.")
+        self.account.characters.add(self.char1)
+        self.assertTrue(self.account.characters, "Char was not added to account.")
 
         # See what happens when we delete char1.
         self.char1.delete()
         # Playable char list should be empty.
         self.assertFalse(
-            self.account.db._playable_characters,
-            f"Playable character list is not empty! {self.account.db._playable_characters}",
+            self.account.characters,
+            f"Playable character list is not empty! {self.account.characters}",
         )
 
 
@@ -392,9 +407,19 @@ class TestDefaultAccountEv(BaseEvenniaTest):
     def test_characters_property(self):
         "test existence of None in _playable_characters Attr"
         self.account.db._playable_characters = [self.char1, None]
-        chars = self.account.characters
-        self.assertEqual(chars, [self.char1])
+        self.assertEqual(self.account.characters.all(), [self.char1])
         self.assertEqual(self.account.db._playable_characters, [self.char1])
+
+    def test_add_character_to_playable_list(self):
+        self.assertEqual(self.account.characters.all(), [])
+        self.account.characters.add(self.char1)
+        self.assertEqual(self.account.characters.all(), [self.char1])
+
+    def test_remove_character_from_playable_list(self):
+        self.account.characters.add(self.char1)
+        self.assertEqual(self.account.characters.all(), [self.char1])
+        self.account.characters.remove(self.char1)
+        self.assertEqual(self.account.characters.all(), [])
 
     def test_puppet_success(self):
         self.account.msg = MagicMock()
@@ -409,9 +434,7 @@ class TestDefaultAccountEv(BaseEvenniaTest):
         self.assertEqual(idle, 10)
 
         # test no sessions
-        with patch(
-            "evennia.accounts.accounts._SESSIONS.sessions_from_account", return_value=[]
-        ) as mock_sessh:
+        with patch("evennia.SESSION_HANDLER.sessions_from_account", return_value=[]) as mock_sessh:
             idle = self.account.idle_time
             self.assertEqual(idle, None)
 
@@ -422,9 +445,7 @@ class TestDefaultAccountEv(BaseEvenniaTest):
         self.assertEqual(conn, 10)
 
         # test no sessions
-        with patch(
-            "evennia.accounts.accounts._SESSIONS.sessions_from_account", return_value=[]
-        ) as mock_sessh:
+        with patch("evennia.SESSION_HANDLER.sessions_from_account", return_value=[]) as mock_sessh:
             idle = self.account.connection_time
             self.assertEqual(idle, None)
 

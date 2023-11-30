@@ -8,12 +8,14 @@ This is the v1.0 develop version (for ref in doc building).
 
 """
 import time
+import typing
 from collections import defaultdict
 
 import inflect
 from django.conf import settings
 from django.utils.translation import gettext as _
 
+import evennia
 from evennia.commands import cmdset
 from evennia.commands.cmdsethandler import CmdSetHandler
 from evennia.objects.manager import ObjectManager
@@ -37,7 +39,6 @@ _INFLECT = inflect.engine()
 _MULTISESSION_MODE = settings.MULTISESSION_MODE
 
 _ScriptDB = None
-_SESSIONS = None
 _CMDHANDLER = None
 
 _AT_SEARCH_RESULT = variable_from_module(*settings.SEARCH_AT_RESULT.rsplit(".", 1))
@@ -68,15 +69,14 @@ class ObjectSessionHandler:
         self._recache()
 
     def _recache(self):
-        global _SESSIONS
-        if not _SESSIONS:
-            from evennia.server.sessionhandler import SESSIONS as _SESSIONS
         self._sessid_cache = list(
             set(int(val) for val in (self.obj.db_sessid or "").split(",") if val)
         )
-        if any(sessid for sessid in self._sessid_cache if sessid not in _SESSIONS):
+        if any(sessid for sessid in self._sessid_cache if sessid not in evennia.SESSION_HANDLER):
             # cache is out of sync with sessionhandler! Only retain the ones in the handler.
-            self._sessid_cache = [sessid for sessid in self._sessid_cache if sessid in _SESSIONS]
+            self._sessid_cache = [
+                sessid for sessid in self._sessid_cache if sessid in evennia.SESSION_HANDLER
+            ]
             self.obj.db_sessid = ",".join(str(val) for val in self._sessid_cache)
             self.obj.save(update_fields=["db_sessid"])
 
@@ -95,22 +95,21 @@ class ObjectSessionHandler:
             Aliased to `self.all()`.
 
         """
-        global _SESSIONS
-        if not _SESSIONS:
-            from evennia.server.sessionhandler import SESSIONS as _SESSIONS
+
         if sessid:
             sessions = (
-                [_SESSIONS[sessid] if sessid in _SESSIONS else None]
+                [evennia.SESSION_HANDLER[sessid] if sessid in evennia.SESSION_HANDLER else None]
                 if sessid in self._sessid_cache
                 else []
             )
         else:
             sessions = [
-                _SESSIONS[ssid] if ssid in _SESSIONS else None for ssid in self._sessid_cache
+                evennia.SESSION_HANDLER[ssid] if ssid in evennia.SESSION_HANDLER else None
+                for ssid in self._sessid_cache
             ]
         if None in sessions:
             # this happens only if our cache has gone out of sync with the SessionHandler.
-
+            self._recache()
             return self.get(sessid=sessid)
         return sessions
 
@@ -136,16 +135,13 @@ class ObjectSessionHandler:
             in the the core sessionhandler.
 
         """
-        global _SESSIONS
-        if not _SESSIONS:
-            from evennia.server.sessionhandler import SESSIONS as _SESSIONS
         try:
             sessid = session.sessid
         except AttributeError:
             sessid = session
 
         sessid_cache = self._sessid_cache
-        if sessid in _SESSIONS and sessid not in sessid_cache:
+        if sessid in evennia.SESSION_HANDLER and sessid not in sessid_cache:
             if len(sessid_cache) >= _SESSID_MAX:
                 return
             sessid_cache.append(sessid)
@@ -218,7 +214,7 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
 
     objects = ObjectManager()
 
-    # populated by `return_apperance`
+    # populated by `return_appearance`
     appearance_template = """
 {header}
 |c{name}|n
@@ -226,7 +222,6 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
 {exits}{characters}{things}
 {footer}
     """
-
     # on-object properties
 
     @lazy_property
@@ -770,7 +765,6 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
             contents = [obj for obj in contents if obj not in exclude]
 
         for receiver in contents:
-
             # actor-stance replacements
             outmessage = _MSG_CONTENTS_PARSER.parse(
                 inmessage,
@@ -1018,7 +1012,14 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
             obj.move_to(home, move_type="teleport")
 
     @classmethod
-    def create(cls, key, account=None, **kwargs):
+    def create(
+        cls,
+        key: str,
+        account: "DefaultAccount" = None,
+        caller: "DefaultObject" = None,
+        method: str = "create",
+        **kwargs,
+    ):
         """
         Creates a basic object with default parameters, unless otherwise
         specified or extended.
@@ -1027,11 +1028,14 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
 
         Args:
             key (str): Name of the new object.
-            account (Account): Account to attribute this object to.
+
 
         Keyword Args:
+            account (Account): Account to attribute this object to.
+            caller (DefaultObject): The object which is creating this one.
             description (str): Brief description for this object.
             ip (str): IP address of creator (for object auditing).
+            method (str): The method of creation. Defaults to "create".
 
         Returns:
             object (Object): A newly created object of the given typeclass.
@@ -1156,10 +1160,7 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
         # sever the connection (important!)
         if self.account:
             # Remove the object from playable characters list
-            if self in self.account.db._playable_characters:
-                self.account.db._playable_characters = [
-                    x for x in self.account.db._playable_characters if x != self
-                ]
+            self.account.characters.remove(self)
             for session in self.sessions.all():
                 self.account.unpuppet_object(session)
 
@@ -1208,7 +1209,7 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
         self.at_access(result, accessing_obj, access_type, **kwargs)
         return result
 
-    # name and return_apperance hooks
+    # name and return_appearance hooks
 
     def get_display_name(self, looker=None, **kwargs):
         """
@@ -1299,7 +1300,7 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
             looker (Object): Object doing the looking.
             **kwargs: Arbitrary data for use when overriding.
         Returns:
-            str: The desc display string..
+            str: The desc display string.
 
         """
         return self.db.desc or "You see nothing special."
@@ -1510,7 +1511,7 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
                 self.attributes.batch_add(*cdict["attributes"])
             if cdict.get("nattributes"):
                 # this should be a dict of nattrname:value
-                for key, value in cdict["nattributes"]:
+                for key, value in cdict["nattributes"].items():
                     self.nattributes.add(key, value)
 
             del self._createdict
@@ -1546,6 +1547,8 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
                     "call:true()",  # allow to call commands on this object
                     "tell:perm(Admin)",  # allow emits to this object
                     "puppet:pperm(Developer)",
+                    "teleport:true()",
+                    "teleport_here:true()",
                 ]
             )
         )  # lock down puppeting only to staff by default
@@ -2116,7 +2119,7 @@ class DefaultObject(ObjectDB, metaclass=TypeclassBase):
         Notes:
             This method shouldn't add extra coloring to the names beyond what is
             already given by the .get_display_name() (and the .name field) already.
-            Per-type coloring can be applied in `return_apperance`.
+            Per-type coloring can be applied in `return_appearance`.
 
         """
         # a mapping {'exits': [...], 'characters': [...], 'things': [...]}
@@ -2536,8 +2539,8 @@ class DefaultCharacter(DefaultObject):
         # Normalize to latin characters and validate, if necessary, the supplied key
         key = cls.normalize_name(key)
 
-        if not cls.validate_name(key):
-            errors.append(_("Invalid character name."))
+        if val_err := cls.validate_name(key, account=account):
+            errors.append(val_err)
             return obj, errors
 
         # Set the supplied key as the name of the intended object
@@ -2555,8 +2558,9 @@ class DefaultCharacter(DefaultObject):
         try:
             # Check to make sure account does not have too many chars
             if account:
-                if len(account.characters) >= settings.MAX_NR_CHARACTERS:
-                    errors.append(_("There are too many characters associated with this account."))
+                avail = account.check_available_slots()
+                if avail:
+                    errors.append(avail)
                     return obj, errors
 
             # Create the Character
@@ -2567,8 +2571,7 @@ class DefaultCharacter(DefaultObject):
                 obj.db.creator_ip = ip
             if account:
                 obj.db.creator_id = account.id
-                if obj not in account.characters:
-                    account.db._playable_characters.append(obj)
+                account.characters.add(obj)
 
             # Add locks
             if not locks and account:
@@ -2611,17 +2614,20 @@ class DefaultCharacter(DefaultObject):
         return latin_name
 
     @classmethod
-    def validate_name(cls, name):
-        """Validate the character name prior to creating. Overload this function to add custom validators
+    def validate_name(cls, name, account=None) -> typing.Optional[str]:
+        """
+        Validate the character name prior to creating. Overload this function to add custom validators
 
         Args:
             name (str) : The name of the character
+        Kwargs:
+            account (DefaultAccount, optional) : The account creating the character.
         Returns:
-            valid (bool) : True if character creation should continue; False if it should fail
+            error (str, optional) : A non-empty error message if there is a problem, otherwise False.
 
         """
-
-        return True  # Default validator does not perform any operations
+        if account and cls.objects.filter_family(db_key__iexact=name):
+            return f"|rA character named '|w{name}|r' already exists.|n"
 
     def basetype_setup(self):
         """
@@ -2635,7 +2641,14 @@ class DefaultCharacter(DefaultObject):
         """
         super().basetype_setup()
         self.locks.add(
-            ";".join(["get:false()", "call:false()"])  # noone can pick up the character
+            ";".join(
+                [
+                    "get:false()",
+                    "call:false()",
+                    "teleport:perm(Admin)",
+                    "teleport_here:perm(Admin)",
+                ]
+            )  # noone can pick up the character
         )  # no commands can be called on character from outside
         # add the default cmdset
         self.cmdset.add_default(settings.CMDSET_CHARACTER, persistent=True)
@@ -2659,20 +2672,20 @@ class DefaultCharacter(DefaultObject):
             session (Session): Session controlling the connection.
 
         """
-        if (
-            self.location is None
-        ):  # Make sure character's location is never None before being puppeted.
-            # Return to last location (or home, which should always exist),
-            self.location = self.db.prelogout_location if self.db.prelogout_location else self.home
-            self.location.at_object_receive(
-                self, None
-            )  # and trigger the location's reception hook.
-        if self.location:  # If the character is verified to be somewhere,
+        if self.location is None:
+            # Make sure character's location is never None before being puppeted.
+            # Return to last location (or home, which should always exist)
+            location = self.db.prelogout_location if self.db.prelogout_location else self.home
+            if location:
+                self.location = location
+                self.location.at_object_receive(self, None)
+
+        if self.location:
             self.db.prelogout_location = self.location  # save location again to be sure.
         else:
             account.msg(
                 _("|r{obj} has no location and no home is set.|n").format(obj=self), session=session
-            )  # Note to set home.
+            )
 
     def at_post_puppet(self, **kwargs):
         """
@@ -2782,7 +2795,14 @@ class DefaultRoom(DefaultObject):
     )
 
     @classmethod
-    def create(cls, key, account=None, **kwargs):
+    def create(
+        cls,
+        key: str,
+        account: "DefaultAccount" = None,
+        caller: DefaultObject = None,
+        method: str = "create",
+        **kwargs,
+    ):
         """
         Creates a basic Room with default parameters, unless otherwise
         specified or extended.
@@ -2791,13 +2811,15 @@ class DefaultRoom(DefaultObject):
 
         Args:
             key (str): Name of the new Room.
-            account (obj, optional): Account to associate this Room with. If
-                given, it will be given specific control/edit permissions to this
-                object (along with normal Admin perms). If not given, default
 
         Keyword Args:
+            account (DefaultAccount, optional): Account to associate this Room with. If
+                given, it will be given specific control/edit permissions to this
+                object (along with normal Admin perms). If not given, default
+            caller (DefaultObject): The object which is creating this one.
             description (str): Brief description for this object.
             ip (str): IP address of creator (for object auditing).
+            method (str): The method used to create the room. Defaults to "create".
 
         Returns:
             room (Object): A newly created Room of the given typeclass.
@@ -2862,7 +2884,7 @@ class DefaultRoom(DefaultObject):
 
         super().basetype_setup()
         self.locks.add(
-            ";".join(["get:false()", "puppet:false()"])
+            ";".join(["get:false()", "puppet:false()", "teleport:false()", "teleport_here:true()"])
         )  # would be weird to puppet a room ...
         self.location = None
 
@@ -2988,7 +3010,16 @@ class DefaultExit(DefaultObject):
     # Command hooks
 
     @classmethod
-    def create(cls, key, source, dest, account=None, **kwargs):
+    def create(
+        cls,
+        key: str,
+        location: DefaultRoom = None,
+        destination: DefaultRoom = None,
+        account: "DefaultAccount" = None,
+        caller: DefaultObject = None,
+        method: str = "create",
+        **kwargs,
+    ) -> tuple[typing.Optional["DefaultExit"], list[str]]:
         """
         Creates a basic Exit with default parameters, unless otherwise
         specified or extended.
@@ -2998,13 +3029,14 @@ class DefaultExit(DefaultObject):
         Args:
             key (str): Name of the new Exit, as it should appear from the
                 source room.
-            account (obj): Account to associate this Exit with.
-            source (Room): The room to create this exit in.
-            dest (Room): The room to which this exit should go.
+            location (Room): The room to create this exit in.
 
         Keyword Args:
+            account (AccountDB): Account to associate this Exit with.
+            caller (ObjectDB): The Object creating this Object.
             description (str): Brief description for this object.
             ip (str): IP address of creator (for object auditing).
+            destination (Room): The room to which this exit should go.
 
         Returns:
             exit (Object): A newly created Room of the given typeclass.
@@ -3027,8 +3059,8 @@ class DefaultExit(DefaultObject):
         kwargs["report_to"] = kwargs.pop("report_to", account)
 
         # Set to/from rooms
-        kwargs["location"] = source
-        kwargs["destination"] = dest
+        kwargs["location"] = location
+        kwargs["destination"] = destination
 
         description = kwargs.pop("description", "")
 
@@ -3078,6 +3110,8 @@ class DefaultExit(DefaultObject):
                     "puppet:false()",  # would be weird to puppet an exit ...
                     "traverse:all()",  # who can pass through exit by default
                     "get:false()",  # noone can pick up the exit
+                    "teleport:false()",
+                    "teleport_here:false()",
                 ]
             )
         )

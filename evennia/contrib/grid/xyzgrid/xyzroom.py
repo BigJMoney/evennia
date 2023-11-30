@@ -9,7 +9,6 @@ used as stand-alone XYZ-coordinate-aware rooms.
 
 from django.conf import settings
 from django.db.models import Q
-
 from evennia.objects.manager import ObjectManager
 from evennia.objects.objects import DefaultExit, DefaultRoom
 
@@ -71,7 +70,7 @@ class XYZManager(ObjectManager):
             .filter(
                 Q()
                 if z == wildcard
-                else Q(db_tags__db_key=str(z), db_tags__db_category=MAP_Z_TAG_CATEGORY)
+                else Q(db_tags__db_key__iexact=str(z), db_tags__db_category=MAP_Z_TAG_CATEGORY)
             )
         )
 
@@ -165,7 +164,7 @@ class XYZExitManager(XYZManager):
             .filter(
                 Q()
                 if z == wildcard
-                else Q(db_tags__db_key=str(z), db_tags__db_category=MAP_Z_TAG_CATEGORY)
+                else Q(db_tags__db_key__iexact=str(z), db_tags__db_category=MAP_Z_TAG_CATEGORY)
             )
             .filter(
                 Q()
@@ -180,7 +179,9 @@ class XYZExitManager(XYZManager):
             .filter(
                 Q()
                 if zdest == wildcard
-                else Q(db_tags__db_key=str(zdest), db_tags__db_category=MAP_ZDEST_TAG_CATEGORY)
+                else Q(
+                    db_tags__db_key__iexact=str(zdest), db_tags__db_category=MAP_ZDEST_TAG_CATEGORY
+                )
             )
         )
 
@@ -220,12 +221,14 @@ class XYZExitManager(XYZManager):
 
         try:
             return (
-                self.filter(db_tags__db_key=str(z), db_tags__db_category=MAP_Z_TAG_CATEGORY)
+                self.filter(db_tags__db_key__iexact=str(z), db_tags__db_category=MAP_Z_TAG_CATEGORY)
                 .filter(db_tags__db_key=str(x), db_tags__db_category=MAP_X_TAG_CATEGORY)
                 .filter(db_tags__db_key=str(y), db_tags__db_category=MAP_Y_TAG_CATEGORY)
                 .filter(db_tags__db_key=str(xdest), db_tags__db_category=MAP_XDEST_TAG_CATEGORY)
                 .filter(db_tags__db_key=str(ydest), db_tags__db_category=MAP_YDEST_TAG_CATEGORY)
-                .filter(db_tags__db_key=str(zdest), db_tags__db_category=MAP_ZDEST_TAG_CATEGORY)
+                .filter(
+                    db_tags__db_key__iexact=str(zdest), db_tags__db_category=MAP_ZDEST_TAG_CATEGORY
+                )
                 .get(**kwargs)
             )
         except self.model.DoesNotExist:
@@ -290,11 +293,13 @@ class XYZRoom(DefaultRoom):
             if x is None or y is None or z is None:
                 # don't cache unfinished coordinate (probably tags have not finished saving)
                 return tuple(
-                    int(coord) if coord is not None and coord.isdigit() else coord
+                    int(coord) if coord is not None and coord.lstrip("-").isdigit() else coord
                     for coord in (x, y, z)
                 )
             # cache result, convert to correct types (tags are strings)
-            self._xyz = tuple(int(coord) if coord.isdigit() else coord for coord in (x, y, z))
+            self._xyz = tuple(
+                int(coord) if coord.lstrip("-").isdigit() else coord for coord in (x, y, z)
+            )
 
         return self._xyz
 
@@ -439,7 +444,6 @@ class XYZRoom(DefaultRoom):
         xymap = self.xyzgrid.get_map(xyz[2])
 
         if xymap and kwargs.get("map_display", xymap.options.get("map_display", self.map_display)):
-
             # show the near-area map.
             map_character_symbol = kwargs.get(
                 "map_character_symbol",
@@ -463,7 +467,10 @@ class XYZRoom(DefaultRoom):
             )
 
             sessions = looker.sessions.get()
-            client_width, _ = sessions[0].get_client_size() if sessions else CLIENT_DEFAULT_WIDTH
+            if sessions:
+                client_width, _ = sessions[0].get_client_size()
+            else:
+                client_width = CLIENT_DEFAULT_WIDTH
 
             map_width = xymap.max_x
 

@@ -277,7 +277,7 @@ class ContribClothing(DefaultObject):
             else:
                 message = f"$You() $conj(put) on {self.name}"
             if to_cover:
-                message += ", covering {iter_to_str(to_cover)}"
+                message += f", covering {iter_to_str(to_cover)}"
             wearer.location.msg_contents(message + ".", from_obj=wearer)
 
     def remove(self, wearer, quiet=False):
@@ -487,12 +487,12 @@ class CmdWear(MuxCommand):
             return
 
         # Apply individual clothing type limits.
-        if clothing_type := clothing.db.type:
+        if clothing_type := clothing.db.clothing_type:
             if clothing_type in CLOTHING_TYPE_LIMIT:
                 type_count = single_type_count(already_worn, clothing_type)
                 if type_count >= CLOTHING_TYPE_LIMIT[clothing_type]:
                     self.caller.msg(
-                        "You can't wear any more clothes of the type '{clothing_type}'."
+                        f"You can't wear any more clothes of the type '{clothing_type}'."
                     )
                     return
 
@@ -560,7 +560,7 @@ class CmdCover(MuxCommand):
 
         if not inherits_from(cover_with, ContribClothing):
             self.caller.msg(f"{cover_with.name} isn't something you can wear.")
-            rturn
+            return
 
         if cover_with.db.clothing_type in CLOTHING_TYPE_CANT_COVER_WITH:
             self.caller.msg(f"You can't cover anything with {cover_with.name}.")

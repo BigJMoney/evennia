@@ -60,13 +60,13 @@ class CmdEcho(Command):
 
 ```
 
-This is the simplest form of command you can imagine. It just gives itself a name, "echo". This is
-what you will use to call this command later.
+This is the simplest form of command you can imagine. It just gives itself a name, "echo". This is what you will use to call this command later.
 
 Next we need to put this in a CmdSet. It will be a one-command CmdSet for now! Change your file as such:
 
 
 ```python
+# in mygame/commands/mycommands.py
 
 from commands.command import Command
 from evennia import CmdSet
@@ -82,7 +82,7 @@ class MyCmdSet(CmdSet):
 
 ```
 
-Our `EchoCmdSet` class must have an `at_cmdset_creation` method, named exactly like this - this is what Evennia will be looking for when setting up the cmdset later, so if you didn't set it up, it will use the parent's version, which is empty. Inside we add the command class to the cmdset by `self.add()`. If you wanted to add more commands to this CmdSet you could just add more lines of `self.add` after this.
+Our `MyCmdSet` class must have an `at_cmdset_creation` method, named exactly like this - this is what Evennia will be looking for when setting up the cmdset later, so if you didn't set it up, it will use the parent's version, which is empty. Inside we add the command class to the cmdset by `self.add()`. If you wanted to add more commands to this CmdSet you could just add more lines of `self.add` after this.
 
 Finally, let's add this command to ourselves so we can try it out. In-game you can experiment with `py` again:
 
@@ -138,6 +138,7 @@ These are all properties you can access with `.` on the Command instance, such a
 The reason our command doesn't do anything yet is because it's missing a `func` method. This is what Evennia looks for to figure out what a Command actually does. Modify your `CmdEcho` class:
 
 ```python
+# in mygame/commands/mycommands.py
 # ...
 
 class CmdEcho(Command):
@@ -176,14 +177,10 @@ Try to pass an argument:
     > echo Woo Tang!
     Echo: ' Woo Tang!'
 
-Note that there is an extra space before `Woo!`. That is because self.args contains _everything_ after the command name, including spaces. Evennia will happily understand if you skip that space too:
-
-    > echoWoo Tang!
-    Echo: 'Woo Tang!'
-
-There are ways to force Evennia to _require_ an initial space, but right now we want to just ignore it since it looks a bit weird for our echo example. Tweak the code:
+Note that there is an extra space before `Woo`. That is because self.args contains _everything_ after the command name, including spaces. Let's remove that extra space with a small tweak:
 
 ```python
+# in mygame/commands/mycommands.py
 # ...
 
 class CmdEcho(Command):
@@ -222,17 +219,67 @@ enough to make `echo` a _persistent_ change though:
 
     > py self.cmdset.add("commands.mycommands.MyCmdSet", persistent=True)
 
-Now you can `reload` as much as you want and your code changes will be available directly without
-needing to re-add the MyCmdSet again. To remove the cmdset again, you'd do
+Now you can `reload` as much as you want and your code changes will be available directly without needing to re-add the MyCmdSet again. 
+
+We will add this cmdset in another way, so remove it manually: 
 
     > py self.cmdset.remove("commands.mycommands.MyCmdSet")
 
-But for now, keep it around, we'll expand it with some more examples.
+### Add the echo command to the default cmdset 
 
+Above we added the `echo` command to ourselves. It will _only_ be available to us and noone else in the game. But all commands in Evennia are part of command-sets, including the normal `look` and `py` commands we have been using all the while. You can easily extend the default command set with your `echo` command - this way _everyone_ in the game will have access to it! 
+
+In `mygame/commands/` you'll find an existing module named `default_cmdsets.py` Open it and you'll find four empty cmdset-classes: 
+
+- `CharacterCmdSet` - this sits on all Characters (this is the one we usually want to modify)
+- `AccountCmdSet` - this sits on all Accounts (shared between Characters, like `logout` etc)
+- `UnloggedCmdSet` - commands available _before_ you login, like the commands for creating your password and connecting to the game.
+- `SessionCmdSet` - commands unique to your Session (your particular client connection). This is unused by default.
+
+Tweak this file as follows:
+
+```python
+# in mygame/commands/default_cmdsets.py 
+
+# ,.. 
+
+from . import mycommands    # <-------  
+
+class CharacterCmdSet(default_cmds.CharacterCmdSet):
+    """
+    The `CharacterCmdSet` contains general in-game commands like `look`,
+    `get`, etc available on in-game Character objects. It is merged with
+    the `AccountCmdSet` when an Account puppets a Character.
+    """
+ 
+    key = "DefaultCharacter"
+ 
+    def at_cmdset_creation(self):
+        """
+        Populates the cmdset
+        """
+        super().at_cmdset_creation()
+        #
+        # any commands you add below will overload the default ones.
+        #
+        self.add(mycommands.CmdEcho)    # <-----------
+
+# ... 
+```
+
+```{sidebar} super() and overriding defaults
+The `super()` Python keyword means that the _parent_ is called. In this case, the parent adds all default commands to this cmdset.  
+
+Coincidentally, this is also how you replace default commands in Evennia!jj To replace e.g. the command `get`, you just give your replacement command the `key` 'get' and add it here - since it's added after `super()`, it will replace the default version of `get`.
+```
+This works the same way as when you added `CmdEcho` to your `MyCmdSet`. The only difference cmdsets are automatically added to all Characters/Accounts etc so you don't have to do so manually. We must also make sure to import the `CmdEcho` from your `mycommands` module in order for this module to know about it. The period ''`.`'' in  `from . import mycommands` means that we are telling Python that `mycommands.py` sits in the same directory as this current module. We want to import the entire module. Further down we access `mycommands.CmdEcho` to add it to the character cmdset.
+
+Just `reload` the server and your `echo` command will be available again. There is no limit to how many cmdsets a given Command can be a part of. 
+
+To remove, you just comment out or delete the `self.add()` line. Keep it like this for now though - we'll expand on it below. 
 ### Figuring out who to hit
 
-Let's try something a little more exciting than just echo. Let's make a `hit` command, for punching
-someone in the face! This is how we want it to work:
+Let's try something a little more exciting than just echo. Let's make a `hit` command, for punching someone in the face! This is how we want it to work:
 
     > hit <target>
     You hit <target> with full force!
@@ -241,11 +288,20 @@ Not only that, we want the `<target>` to see
 
     You got hit by <hitter> with full force!
 
-Here, `<hitter>` would be the one using the `hit` command and `<target>` is the one doing the punching.
+Here, `<hitter>` would be the one using the `hit` command and `<target>` is the one doing the punching; so if your name was `Anna`, and you hit someone named `Bob`, this would look like this: 
+
+    > hit bob
+    You hit Bob with full force!
+
+And Bob would see
+
+    You got hit by by Anna with full force!
 
 Still in `mygame/commands/mycommands.py`, add a new class, between `CmdEcho` and `MyCmdSet`.
 
 ```{code-block} python
+# in mygame/commands/mycommands.py
+
 :linenos:
 :emphasize-lines: 3,4,11,14,15,17,18,19,21
 
@@ -295,17 +351,15 @@ The full form of the if statement is
 	else:
 	    ...
 
-There can be any number of `elifs` to mark when different branches of the code should run. If
-the `else` condition is given, it will run if none of the other conditions was truthy. In Python
-the `if..elif..else` structure also serves the same function as `case` in some other languages.
+There can be any number of `elifs` to mark when different branches of the code should run. If `else` is provided, it will run if none of the other conditions were truthy. 
 
 ```
 - **Line 15** has our first _conditional_, an `if` statement. This is written on the form `if <condition>:` and only if that condition is 'truthy' will the indented code block under the `if` statement run. To learn what is truthy in Python it's usually easier to learn what is "falsy":
     - `False` - this is a reserved boolean word in Python. The opposite is `True`.
     - `None` - another reserved word. This represents nothing, a null-result or value.
     - `0` or `0.0`
-    - The empty string `""` or `''` or `""""""` or `''''''`
-    - Empty _iterables_ we haven't seen yet, like empty lists `[]`, empty tuples `()` and empty dicts `{}`.
+    - The empty strings `""`, `''`, or empty triple-strings like `""""""`,  `''''''`
+    - Empty _iterables_ we haven't used yet, like empty lists `[]`, empty tuples `()` and empty dicts `{}`.
     - Everything else is "truthy".
 
 - **Line 16**'s condition is `not args`. The `not` _inverses_ the result, so if `args` is the empty string (falsy), the whole conditional becomes truthy. Let's continue in the code:
@@ -315,11 +369,12 @@ the `if..elif..else` structure also serves the same function as `case` in some o
 - **Lines 19-20**: A feature of `.search` is that it will already inform `self.caller` if it couldn't find the target. In that case, `target` will be `None` and we should just directly `return`.
 - **Lines 21-22**: At this point we have a suitable target and can send our punching strings to each.
 
-Finally we must also add this to a CmdSet. Let's add it to `MyCmdSet` which we made persistent earlier.
+Finally we must also add this to a CmdSet. Let's add it to `MyCmdSet`.
 
 ```python
-# ...
+# in mygame/commands/mycommands.py
 
+# ...
 class MyCmdSet(CmdSet):
 
     def at_cmdset_creation(self):
@@ -336,6 +391,38 @@ directly in-game or in your log (view it with `evennia -l` in a terminal).
 Don't panic; tracebacks are your friends - they are to be read bottom-up and usually describe exactly where your problem is. Refer to [The Python introduction lesson](./Beginner-Tutorial-Python-basic-introduction.md) for more hints. If you get stuck, reach out to the Evennia community for help.
 ```
 
+Note that since we did `py self.cmdset.remove("commands.mycommands.MyCmdSet")` earlier, this cmdset is no longer available on our Character. Instead we will add these commands directly to our default cmdset.
+
+```python
+# in mygame/commands/default_cmdsets.py 
+
+# ,.. 
+
+from . import mycommands    
+
+class CharacterCmdSet(default_cmds.CharacterCmdSet):
+    """
+    The `CharacterCmdSet` contains general in-game commands like `look`,
+    `get`, etc available on in-game Character objects. It is merged with
+    the `AccountCmdSet` when an Account puppets a Character.
+    """
+ 
+    key = "DefaultCharacter"
+ 
+    def at_cmdset_creation(self):
+        """
+        Populates the cmdset
+        """
+        super().at_cmdset_creation()
+        #
+        # any commands you add below will overload the default ones.
+        #
+        self.add(mycommands.MyCmdSet)    # <-----------
+# ... 
+```
+
+We changed from adding the individual `echo` command to adding the entire `MyCmdSet` in one go! This will add all commands in that cmdset to the `CharacterCmdSet` and is a practical way to add a lot of command in one go. Once you explore Evennia further, you'll find that [Evennia contribs](../../../Contribs/Contribs-Overview.md) all distribute their new commands in cmdsets, so you can easily add them to your game like this.
+
 Next we reload to let Evennia know of these code changes and try it out:
 
     > reload
@@ -345,8 +432,7 @@ Next we reload to let Evennia know of these code changes and try it out:
     You hit YourName with full force!
     You got hit by YourName with full force!
 
-Lacking a target, we hit ourselves. If you have one of the dragons still around from the previous lesson
-you could try to hit it (if you dare):
+Lacking a target, we hit ourselves. If you have one of the dragons still around from the previous lesson you could try to hit it (if you dare):
 
     hit smaug
     You hit Smaug with full force!

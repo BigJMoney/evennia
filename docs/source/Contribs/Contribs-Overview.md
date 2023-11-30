@@ -7,7 +7,7 @@ in the [Community Contribs & Snippets][forum] forum.
 _Contribs_ are optional code snippets and systems contributed by
 the Evennia community. They vary in size and complexity and
 may be more specific about game types and styles than 'core' Evennia.
-This page is auto-generated and summarizes all **47** contribs currently included
+This page is auto-generated and summarizes all **49** contribs currently included
 with the Evennia distribution.
 
 All contrib categories are imported from `evennia.contrib`, such as
@@ -31,14 +31,14 @@ If you want to add a contrib, see [the contrib guidelines](./Contribs-Guidelines
 |---|---|---|---|---|
 | [auditing](#auditing) | [awsstorage](#awsstorage) | [barter](#barter) | [batchprocessor](#batchprocessor) | [bodyfunctions](#bodyfunctions) |
 | [buffs](#buffs) | [building_menu](#building_menu) | [character_creator](#character_creator) | [clothing](#clothing) | [color_markups](#color_markups) |
-| [components](#components) | [cooldowns](#cooldowns) | [crafting](#crafting) | [custom_gametime](#custom_gametime) | [dice](#dice) |
-| [email_login](#email_login) | [evadventure](#evadventure) | [evscaperoom](#evscaperoom) | [extended_room](#extended_room) | [fieldfill](#fieldfill) |
-| [gendersub](#gendersub) | [git_integration](#git_integration) | [godotwebsocket](#godotwebsocket) | [health_bar](#health_bar) | [ingame_map_display](#ingame_map_display) |
-| [ingame_python](#ingame_python) | [mail](#mail) | [mapbuilder](#mapbuilder) | [menu_login](#menu_login) | [mirror](#mirror) |
-| [multidescer](#multidescer) | [mux_comms_cmds](#mux_comms_cmds) | [name_generator](#name_generator) | [puzzles](#puzzles) | [random_string_generator](#random_string_generator) |
-| [red_button](#red_button) | [rpsystem](#rpsystem) | [simpledoor](#simpledoor) | [slow_exit](#slow_exit) | [talking_npc](#talking_npc) |
-| [traits](#traits) | [tree_select](#tree_select) | [turnbattle](#turnbattle) | [tutorial_world](#tutorial_world) | [unixcommand](#unixcommand) |
-| [wilderness](#wilderness) | [xyzgrid](#xyzgrid) |
+| [components](#components) | [containers](#containers) | [cooldowns](#cooldowns) | [crafting](#crafting) | [custom_gametime](#custom_gametime) |
+| [dice](#dice) | [email_login](#email_login) | [evadventure](#evadventure) | [evscaperoom](#evscaperoom) | [extended_room](#extended_room) |
+| [fieldfill](#fieldfill) | [gendersub](#gendersub) | [git_integration](#git_integration) | [godotwebsocket](#godotwebsocket) | [health_bar](#health_bar) |
+| [ingame_map_display](#ingame_map_display) | [ingame_python](#ingame_python) | [llm](#llm) | [mail](#mail) | [mapbuilder](#mapbuilder) |
+| [menu_login](#menu_login) | [mirror](#mirror) | [multidescer](#multidescer) | [mux_comms_cmds](#mux_comms_cmds) | [name_generator](#name_generator) |
+| [puzzles](#puzzles) | [random_string_generator](#random_string_generator) | [red_button](#red_button) | [rpsystem](#rpsystem) | [simpledoor](#simpledoor) |
+| [slow_exit](#slow_exit) | [talking_npc](#talking_npc) | [traits](#traits) | [tree_select](#tree_select) | [turnbattle](#turnbattle) |
+| [tutorial_world](#tutorial_world) | [unixcommand](#unixcommand) | [wilderness](#wilderness) | [xyzgrid](#xyzgrid) |
 
 
 
@@ -111,9 +111,9 @@ Additional color markup styles for Evennia (extending or replacing the default
 
 ### `components`
 
-__Contrib by ChrisLR 2021__
+_Contrib by ChrisLR, 2021_
 
-# The Components Contrib
+Expand typeclasses using a components/composition approach.
 
 [Read the documentation](./Contrib-Components.md) - [Browse the Code](evennia.contrib.base_systems.components)
 
@@ -268,6 +268,7 @@ Contribs-Guidelines.md
 
 Contrib-Barter.md
 Contrib-Clothing.md
+Contrib-Containers.md
 Contrib-Cooldowns.md
 Contrib-Crafting.md
 Contrib-Gendersub.md
@@ -302,6 +303,16 @@ Provides a typeclass and commands for wearable clothing. These
 look of these clothes are appended to the character's description when worn.
 
 [Read the documentation](./Contrib-Clothing.md) - [Browse the Code](evennia.contrib.game_systems.clothing)
+
+
+
+### `containers`
+
+_Adds the ability to put objects into other container objects by providing a container typeclass and extending certain base commands._
+
+## Installation
+
+[Read the documentation](./Contrib-Containers.md) - [Browse the Code](evennia.contrib.game_systems.containers)
 
 
 
@@ -363,9 +374,9 @@ on their own.
 _Contribution by Griatch 2016_
 
 A "multidescer" is a concept from the MUSH world. It allows for
-creating, managing and switching between multiple character
-descriptions and is a way for quickly managing your look (such as when 
-changing clothes) in more free-form roleplaying systems. This will also 
+splitting your descriptions into arbitrary named 'sections' which you can
+then swap out at will. It is a way for quickly managing your look (such as when
+changing clothes) in more free-form roleplaying systems. This will also
 work well together with the `rpsystem` contrib.
 
 [Read the documentation](./Contrib-Multidescer.md) - [Browse the Code](evennia.contrib.game_systems.multidescer)
@@ -430,12 +441,16 @@ Contrib-XYZGrid.md
 
 ### `extended_room`
 
-_Contribution - Griatch 2012, vincent-lg 2019_
+_Contribution - Griatch 2012, vincent-lg 2019, Griatch 2023_
 
-This extends the normal `Room` typeclass to allow its description to change 
-with time-of-day and/or season. It also adds 'details' for the player to look at 
-in the room (without having to create a new in-game object for each). The room is 
-supported by new `look` and `desc` commands.
+This extends the normal `Room` typeclass to allow its description to change with
+time-of-day and/or season as well as any other state (like flooded or dark).
+Embedding `$state(burning, This place is on fire!)` in the description will
+allow for changing the description based on room state. The room also supports
+`details` for the player to look at in the room (without having to create a new
+in-game object for each), as well as support for random echoes. The room
+comes with a set of alternate commands for `look` and `@desc`, as well as new
+commands `detail`, `roomstate` and `time`.
 
 [Read the documentation](./Contrib-Extended-Room.md) - [Browse the Code](evennia.contrib.grid.extended_room)
 
@@ -494,7 +509,7 @@ and abort an ongoing traversal, respectively.
 _Contribution by titeuf87, 2017_
 
 This contrib provides a wilderness map without actually creating a large number
-of rooms - as you move, you instead end up back in the same room but its description 
+of rooms - as you move, you instead end up back in the same room but its description
 changes. This means you can make huge areas with little database use as
 long as the rooms are relatively similar (e.g. only the names/descs changing).
 
@@ -537,6 +552,7 @@ Contrib-Buffs.md
 Contrib-Character-Creator.md
 Contrib-Dice.md
 Contrib-Health-Bar.md
+Contrib-Llm.md
 Contrib-RPSystem.md
 Contrib-Traits.md
 ```
@@ -565,10 +581,10 @@ Commands for managing and initiating an in-game character-creation menu.
 
 ### `dice`
 
-_Contribution by Griatch, 2012_
+_Contribution by Griatch, 2012, 2023_
 
 A dice roller for any number and side of dice. Adds in-game dice rolling
-(`roll 2d10 + 1`) as well as conditionals (roll under/over/equal to a target)
+(like `roll 2d10 + 1`) as well as conditionals (roll under/over/equal to a target)
 and functions for rolling dice in code. Command also supports hidden or secret
 rolls for use by a human game master.
 
@@ -586,6 +602,16 @@ is merely the most obvious use for this, but the bar is highly customizable
 and can be used for any sort of appropriate data besides player health.
 
 [Read the documentation](./Contrib-Health-Bar.md) - [Browse the Code](evennia.contrib.rpg.health_bar)
+
+
+
+### `llm`
+
+_Contribution by Griatch 2023_
+
+This adds an LLMClient that allows Evennia to send prompts to a  LLM server (Large Language Model, along the lines of ChatGPT). Example uses a local OSS LLM install. Included is an NPC you can chat with using a new `talk` command. The NPC will respond using the AI responses from the LLM server. All calls are asynchronous, so if the LLM is slow, Evennia is not affected.
+
+[Read the documentation](./Contrib-Llm.md) - [Browse the Code](evennia.contrib.rpg.llm)
 
 
 
@@ -674,13 +700,12 @@ character make small verbal observations at irregular intervals.
 
 ### `evadventure`
 
-_Contrib by Griatch 2022_
+_Contrib by Griatch 2023-_
 
 
 ```{warning}
-NOTE - this tutorial is WIP and NOT complete! It was put on hold to focus on
-releasing Evennia 1.0. You will still learn things from it, but don't expect
-perfection.
+NOTE - this tutorial is WIP and NOT complete yet! You will still learn
+things from it, but don't expect perfection.
 ```
 
 [Read the documentation](./Contrib-Evadventure.md) - [Browse the Code](evennia.contrib.tutorials.evadventure)
@@ -791,7 +816,7 @@ to any callable of your choice.
 
 _Contribution by helpme (2022)_
 
-A module to integrate a stripped-down version of git within the game, allowing developers to view their git status, change branches, and pull updated code of both their local mygame repo and Evennia core. After a successful pull or checkout, the git command will reload the game: Manual restarts may be required to to apply certain changes that would impact persistent scripts etc. 
+A module to integrate a stripped-down version of git within the game, allowing developers to view their git status, change branches, and pull updated code of both their local mygame repo and Evennia core. After a successful pull or checkout, the git command will reload the game: Manual restarts may be required to to apply certain changes that would impact persistent scripts etc.
 
 [Read the documentation](./Contrib-Git-Integration.md) - [Browse the Code](evennia.contrib.utils.git_integration)
 
