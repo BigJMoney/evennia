@@ -330,6 +330,7 @@ class EvenniaCommandTestMixin:
         obj=None,
         inputs=None,
         raw_string=None,
+        evtable=False,
     ):
         """
         Test a command by assigning all the needed properties to a cmdobj and
@@ -422,6 +423,14 @@ class EvenniaCommandTestMixin:
         cmdobj.raw_string = raw_string if raw_string is not None else cmdobj.key + " " + input_args
         cmdobj.obj = obj or (caller if caller else self.char1)
         inputs = inputs or []
+
+        def parse_ansi(mess):
+            if not evtable:
+                # version with evtable-style decoration characters removed
+                return _RE_STRIP_EVMENU.sub("", ansi.parse_ansi(mess, strip_ansi=noansi))
+            else:
+                # version with the characters preserved
+                return ansi.parse_ansi(mess, strip_ansi=noansi)
 
         # set up receivers
         receiver_mapping = {}
@@ -518,9 +527,7 @@ class EvenniaCommandTestMixin:
                 # to write the comparison string. We also strip ansi before this
                 # comparison since otherwise it would mess with the regex.
                 returned_msg = msg_sep.join(
-                    _RE_STRIP_EVMENU.sub("", ansi.parse_ansi(mess, strip_ansi=noansi))
-                    for mess in stored_msg
-                ).strip()
+                    parse_ansi(mess) for mess in stored_msg).strip()
 
                 # this is the actual test
                 if expected_msg == "" and returned_msg or not returned_msg.startswith(expected_msg):
