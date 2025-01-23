@@ -231,7 +231,7 @@ fetch those separately before displaying it to the user.</p></li>
 <p><span class="versionmodified changed">Changed in version 1.0: </span>Game folders created with older versions of Evennia will lack most of this
 convenient <code class="docutils literal notranslate"><span class="pre">mygame/web/</span></code> layout. If you use a game dir from an older version,
 you should copy over the missing <code class="docutils literal notranslate"><span class="pre">evennia/game_template/web/</span></code> folders from
-there, as well as the main <a class="reference external" href="http://urls.py">urls.py</a> file.</p>
+there, as well as the main <code class="docutils literal notranslate"><span class="pre">urls.py</span></code> file.</p>
 </div>
 <p>As you can see, the <code class="docutils literal notranslate"><span class="pre">mygame/web/</span></code> folder is a copy of the <code class="docutils literal notranslate"><span class="pre">evennia/web/</span></code> folder structure except the <code class="docutils literal notranslate"><span class="pre">mygame</span></code> folders are mostly empty.</p>
 <p>For static- and template-files, Evennia will <em>first</em> look in <code class="docutils literal notranslate"><span class="pre">mygame/static</span></code> and <code class="docutils literal notranslate"><span class="pre">mygame/templates</span></code> before going to the default locations in <code class="docutils literal notranslate"><span class="pre">evennia/web/</span></code>.  So override these resources, you just need to put a file with the same name in the right spot under <code class="docutils literal notranslate"><span class="pre">mygame/web/</span></code> (and then reload the server). Easiest is often to copy the original over and modify it.</p>
@@ -333,7 +333,7 @@ we find the view is in in <code class="docutils literal notranslate"><span class
 
 <span class="c1"># ...</span>
 
-<span class="kn">from</span> <span class="nn">web.website.views</span> <span class="kn">import</span> <span class="n">index</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">web.website.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">index</span>
 
 <span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
     <span class="n">path</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">index</span><span class="o">.</span><span class="n">EvenniaIndexView</span><span class="o">.</span><span class="n">as_view</span><span class="p">(),</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;index&quot;</span><span class="p">)</span>
@@ -385,9 +385,9 @@ add <code class="docutils literal notranslate"><span class="pre">/test/</span></
 Django/Evennia will think it contains unit tests). Add a view there to process your page. This is a minimal view to start from (read much more <a class="reference external" href="https://docs.djangoproject.com/en/4.1/topics/class-based-views/">in the Django docs</a>):</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># mygame/web/website/views/testview.py</span>
 
-<span class="kn">from</span> <span class="nn">django.views.generic</span> <span class="kn">import</span> <span class="n">TemplateView</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.views.generic</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemplateView</span>
 
-<span class="k">class</span> <span class="nc">MyTestView</span><span class="p">(</span><span class="n">TemplateView</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyTestView</span><span class="p">(</span><span class="n">TemplateView</span><span class="p">):</span>
     <span class="n">template_name</span> <span class="o">=</span> <span class="s2">&quot;website/test.html&quot;</span>
 
 
@@ -398,7 +398,7 @@ Django/Evennia will think it contains unit tests). Add a view there to process y
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># in mygame/web/website/urls.py</span>
 
 <span class="c1"># ...</span>
-<span class="kn">from</span> <span class="nn">web.website.views</span> <span class="kn">import</span> <span class="n">testview</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">web.website.views</span><span class="w"> </span><span class="kn">import</span> <span class="n">testview</span>
 
 <span class="n">urlpatterns</span> <span class="o">=</span> <span class="p">[</span>
     <span class="c1"># ...</span>
